@@ -18,6 +18,7 @@ const Auth = ({ onAuthSuccess }) => {
       if (isLogin) {
         const data = await login(email, password);
         localStorage.setItem('token', data.access_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
         onAuthSuccess();
       } else {
         await signup(email, password);

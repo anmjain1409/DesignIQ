@@ -25,13 +25,15 @@ class Neo4jClient:
         """
         return self._execute_query(query, {"industry": industry, "user_email": user_email})
 
-    def create_user(self, email, hashed_password):
+    def create_user(self, email, hashed_password, name=None, role="Engineer"):
         query = """
         MERGE (u:User {email: $email})
-        ON CREATE SET u.password = $password
+        ON CREATE SET u.password = $password, u.name = $name, u.role = $role
         RETURN u
         """
-        return self._execute_query(query, {"email": email, "password": hashed_password})
+        # Default name to email prefix if not provided
+        user_name = name or email.split('@')[0].replace('.', ' ').title()
+        return self._execute_query(query, {"email": email, "password": hashed_password, "name": user_name, "role": role})
 
     def get_user(self, email):
         query = "MATCH (u:User {email: $email}) RETURN u"
@@ -106,6 +108,7 @@ class Neo4jClient:
         query = f"""
         MATCH (u:User {{email: $user_email}})
         MERGE (a:Asset {{name: $product, industry: $industry}})
+        ON CREATE SET a.createdAt = timestamp()
         MERGE (u)-[:OWNS]->(a)
         
         MERGE (s:System {{name: $system}})
@@ -150,36 +153,35 @@ class Neo4jClient:
         records = self._execute_query(query, {"node_name": node_name, "user_email": user_email})
         return records
 
-    def create_change_request(self, component_name: str, node_type: str, user_email: str):
-        query = """
-        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(c:Component {name: $component_name})
-        CREATE (cr:ChangeRequest {
-            id: 'CR-' + apoc.text.random(5),
-            title: 'Design Change: ' + c.name,
-            status: 'Pending',
-            priority: 'High',
-            createdAt: datetime(),
-            user: $user_email
-        })
-        MERGE (cr)-[:AFFECTS]->(c)
-        RETURN cr
-        """
-        # Using a simpler query if APOC is not available, but let's assume it is or use a simpler ID
+    def create_change_request(self, component_name: str, node_type: str, user_email: str,
+                               title: str = None, priority: str = 'Medium', discipline: str = 'General'):
+        cr_title = title or f'Design Change: {component_name}'
         query_simple = """
-        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(c:Component {name: $component_name})
-        MERGE (cr:ChangeRequest {
-            title: 'Design Change: ' + c.name,
+        MATCH (u:User {email: $user_email})
+        OPTIONAL MATCH (u)-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(c:Component {name: $component_name})
+        WITH u, c
+        CREATE (cr:ChangeRequest {
+            id: 'CR-' + toString(timestamp()),
+            title: $cr_title,
+            status: 'Pending',
+            priority: $priority,
+            discipline: $discipline,
+            component: $component_name,
+            createdAt: timestamp(),
             user: $user_email
         })
-        ON CREATE SET 
-            cr.id = 'CR-' + toString(timestamp()),
-            cr.status = 'Pending',
-            cr.priority = 'Medium',
-            cr.createdAt = timestamp()
-        MERGE (cr)-[:AFFECTS]->(c)
+        FOREACH (_ IN CASE WHEN c IS NOT NULL THEN [1] ELSE [] END |
+            MERGE (cr)-[:AFFECTS]->(c)
+        )
         RETURN cr
         """
-        return self._execute_query(query_simple, {"component_name": component_name, "user_email": user_email})
+        return self._execute_query(query_simple, {
+            "component_name": component_name,
+            "user_email": user_email,
+            "cr_title": cr_title,
+            "priority": priority,
+            "discipline": discipline
+        })
 
     def get_change_requests(self, user_email: str):
         query = """
@@ -192,38 +194,43 @@ class Neo4jClient:
     def get_assets(self, user_email: str):
         query = """
         MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)
-        RETURN a.name AS name, a.industry AS industry, id(a) AS id
+        RETURN a.name AS name, a.industry AS industry, id(a) AS id, a.createdAt AS createdAt
+        ORDER BY a.createdAt DESC
         """
         return self._execute_query(query, {"user_email": user_email})
 
     def get_dashboard_stats(self, user_email: str):
         query = """
-        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)
-        WITH a
+        MATCH (u:User {email: $user_email})
+        OPTIONAL MATCH (u)-[:OWNS]->(a:Asset)
         OPTIONAL MATCH (a)-[:HAS_SYSTEM]->(s:System)
         OPTIONAL MATCH (s)-[:HAS_COMPONENT]->(c:Component)
-        
-        // Get recent ingestions
-        WITH count(DISTINCT a) AS total_assets, 
-             count(DISTINCT s) AS total_systems, 
-             count(DISTINCT c) AS total_components,
-             u
-        MATCH (u)-[:OWNS]->(asset:Asset)
-        RETURN 
+        WITH u,
+             count(DISTINCT a) AS total_assets,
+             count(DISTINCT s) AS total_systems,
+             count(DISTINCT c) AS total_components
+        OPTIONAL MATCH (u)-[:OWNS]->(asset:Asset)
+        WITH u, total_assets, total_systems, total_components, asset
+        ORDER BY asset.createdAt DESC
+        RETURN
             total_assets, total_systems, total_components,
-            collect({
+            [x IN collect({
                 id: id(asset),
                 title: asset.name,
                 type: 'ingestion',
                 time: 'Recently',
                 action: 'CAD Data Ingested',
                 user: u.email
-            })[0..5] AS recent_activity
+            }) WHERE x.id IS NOT NULL][0..5] AS recent_activity
         """
         result = self._execute_query(query, {"user_email": user_email})
         if not result:
             return {"total_assets": 0, "total_systems": 0, "total_components": 0, "recent_activity": []}
-        return result[0]
+        row = result[0]
+        # Ensure recent_activity is always a list
+        if row.get("recent_activity") is None:
+            row["recent_activity"] = []
+        return row
 
     def get_node_properties(self, node_name: str, node_type: str, user_email: str):
         query = f"""

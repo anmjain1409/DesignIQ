@@ -11,13 +11,14 @@ import {
   ChevronRight,
   Monitor
 } from 'lucide-react';
-import { fetchSystems, fetchGraph, runImpactAnalysis } from './services/api';
+import { fetchSystems, fetchGraph, runImpactAnalysis, fetchDashboardStats, fetchAssets, fetchChangeRequests } from './services/api';
 import SystemList from './components/SystemList';
 import GraphView from './components/GraphView';
 import ImpactPanel from './components/ImpactPanel';
 import CadIngestionModal from './components/CadIngestionModal';
 import Auth from './components/Auth';
 import Dashboard from './components/Dashboard';
+import ChangeRequests from './components/ChangeRequests';
 
 const INDUSTRIES = [
   { id: 'Ship', name: 'Shipbuilding', asset: 'Ship Alpha' },
@@ -37,6 +38,7 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showIngestModal, setShowIngestModal] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
+  const [user, setUser] = useState(JSON.parse(localStorage.getItem('user') || '{"name": "Chief Architect", "role": "Admin"}'));
 
   useEffect(() => {
     if (isLoggedIn && view === 'bom') {
@@ -46,6 +48,7 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setIsLoggedIn(false);
   };
 
@@ -82,10 +85,12 @@ function App() {
 
   const [assets, setAssets] = useState([]);
   const [changeRequests, setChangeRequests] = useState([]);
-  const [dashboardStats, setDashboardStats] = useState({ total_assets: 0, recent_activity: [] });
+  const [dashboardStats, setDashboardStats] = useState({ total_assets: 0, total_systems: 0, total_components: 0, recent_activity: [] });
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
 
   useEffect(() => {
     const initData = async () => {
+      setIsStatsLoading(true);
       try {
         const [statsData, assetsData, crData] = await Promise.all([
           fetchDashboardStats(),
@@ -97,6 +102,8 @@ function App() {
         setChangeRequests(crData);
       } catch (err) {
         console.error("Initial load failed", err);
+      } finally {
+        setIsStatsLoading(false);
       }
     };
     initData();
@@ -112,7 +119,10 @@ function App() {
   };
 
   if (!isLoggedIn) {
-    return <Auth onAuthSuccess={() => setIsLoggedIn(true)} />;
+    return <Auth onAuthSuccess={() => {
+      setIsLoggedIn(true);
+      setUser(JSON.parse(localStorage.getItem('user')));
+    }} />;
   }
 
   return (
@@ -173,10 +183,12 @@ function App() {
 
         <div className="sidebar-footer">
           <div className="user-profile">
-            <div className="avatar">CA</div>
+            <div className="avatar">
+              {user.name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)}
+            </div>
             <div className="user-info">
-              <span className="name">Chief Architect</span>
-              <span className="role">Admin</span>
+              <span className="name">{user.name}</span>
+              <span className="role">{user.role}</span>
             </div>
             <LogOut 
               size={18} 
@@ -213,37 +225,21 @@ function App() {
         <div className="content-area">
           {view === 'dashboard' && (
             <div className="dashboard-view">
-              <Dashboard />
+              <Dashboard
+                stats={dashboardStats}
+                isLoading={isStatsLoading}
+                changeRequests={changeRequests}
+                onNavigate={setView}
+                onIngestCAD={() => setShowIngestModal(true)}
+              />
             </div>
           )}
           
           {view === 'change-requests' && (
-            <div className="dashboard-view">
-              <h1 className="page-title">Change Requests</h1>
-              <p className="page-desc">Manage engineering change orders and impact approvals.</p>
-              <div className="activity-card">
-                <div className="activity-list">
-                  {(!Array.isArray(changeRequests) || changeRequests.length === 0) ? (
-                    <div style={{ padding: '32px 24px', textAlign: 'center', opacity: 0.5 }}>
-                      <Activity size={32} style={{ marginBottom: '12px' }} />
-                      <p>No active change requests found. Initiate one from the BOM Graph.</p>
-                    </div>
-                  ) : (
-                    changeRequests.map(cr => (
-                      <div key={cr.id || Math.random()} className="activity-item" style={{ padding: '20px' }}>
-                        <div className="activity-details">
-                          <span className="title" style={{ fontSize: '1.1rem' }}>{cr.id || 'N/A'}: {cr.title || 'Untitled Request'}</span>
-                          <span className="status">Target: {cr.component || 'Unknown'} | Priority: {cr.priority || 'Medium'}</span>
-                        </div>
-                        <div className="activity-meta">
-                          <span className={`status-pill ${(cr.status || 'pending').toLowerCase()}`}>{cr.status || 'Pending'}</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
+            <ChangeRequests
+              changeRequests={changeRequests}
+              onRefresh={() => fetchChangeRequests().then(setChangeRequests)}
+            />
           )}
 
           {view === 'bom' && (
@@ -307,7 +303,9 @@ function App() {
                       <div key={asset.id} className="activity-item">
                         <div className="activity-details">
                           <span className="title">{asset.name}</span>
-                          <span className="status">Industry: {asset.industry}</span>
+                          <span className="status">
+                            Industry: {asset.industry} | Ingested: {asset.createdAt ? new Date(asset.createdAt).toLocaleString() : 'Recently'}
+                          </span>
                         </div>
                         <button className="primary-btn-mini" onClick={() => { setView('bom'); }}>Analyze</button>
                       </div>

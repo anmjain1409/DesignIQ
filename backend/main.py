@@ -24,6 +24,8 @@ app.add_middleware(
 class UserSignup(BaseModel):
     email: str
     password: str
+    name: Optional[str] = None
+    role: Optional[str] = "Engineer"
 
 class UserLogin(BaseModel):
     email: str
@@ -32,6 +34,9 @@ class UserLogin(BaseModel):
 class ImpactRequest(BaseModel):
     component_name: str
     node_type: str
+    title: Optional[str] = None
+    priority: Optional[str] = 'Medium'
+    discipline: Optional[str] = 'General'
 
 # Auth Dependency
 async def get_current_user(authorization: Optional[str] = Header(None)):
@@ -50,7 +55,7 @@ def signup(user: UserSignup):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     hashed_password = get_password_hash(user.password)
-    neo4j_client.create_user(user.email, hashed_password)
+    neo4j_client.create_user(user.email, hashed_password, user.name, user.role)
     return {"message": "User created successfully"}
 
 @app.post("/auth/login")
@@ -59,7 +64,15 @@ def login(user: UserLogin):
     if not db_user or not verify_password(user.password, db_user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token(data={"sub": user.email})
-    return {"access_token": token, "token_type": "bearer"}
+    return {
+        "access_token": token, 
+        "token_type": "bearer",
+        "user": {
+            "email": db_user.get("email"),
+            "name": db_user.get("name", user.email.split('@')[0]),
+            "role": db_user.get("role", "Engineer")
+        }
+    }
 
 @app.get("/systems")
 def get_systems(industry: str, user_email: str = Depends(get_current_user)):
@@ -98,7 +111,10 @@ def get_assets(user_email: str = Depends(get_current_user)):
 
 @app.post("/change-requests")
 def create_cr(request: ImpactRequest, user_email: str = Depends(get_current_user)):
-    return neo4j_client.create_change_request(request.component_name, request.node_type, user_email)
+    return neo4j_client.create_change_request(
+        request.component_name, request.node_type, user_email,
+        title=request.title, priority=request.priority, discipline=request.discipline
+    )
 
 @app.get("/change-requests")
 def get_crs(user_email: str = Depends(get_current_user)):

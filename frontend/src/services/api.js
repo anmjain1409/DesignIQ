@@ -75,10 +75,11 @@ export const fetchChangeRequests = async () => {
   return response.data;
 };
 
-export const createChangeRequest = async (nodeName, nodeType) => {
+export const createChangeRequest = async (componentName, nodeType, extra = {}) => {
   const response = await axios.post(`${API_BASE_URL}/change-requests`, {
-    component_name: nodeName,
-    node_type: nodeType
+    component_name: componentName,
+    node_type: nodeType,
+    ...extra
   });
   return response.data;
 };

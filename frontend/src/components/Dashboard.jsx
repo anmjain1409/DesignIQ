@@ -1,67 +1,75 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { 
-  GitPullRequest, 
-  Clock, 
-  Activity, 
-  CheckCircle, 
-  Zap, 
-  TrendingUp, 
-  UploadCloud, 
-  AlertTriangle,
-  User,
-  ExternalLink
+  GitPullRequest, Clock, Activity, CheckCircle, Zap, TrendingUp,
+  UploadCloud, AlertTriangle, User, ExternalLink,
+  GitBranch, ShieldCheck, Database, TriangleAlert
 } from 'lucide-react';
-import { fetchDashboardStats } from '../services/api';
 
-const Dashboard = () => {
-  const [liveStats, setLiveStats] = useState({
+const statusIconColor = {
+  Pending:     '#ffcc00',
+  Approved:    '#00ffcc',
+  Rejected:    '#ff4d4d',
+  Draft:       '#848d97',
+  'In Progress': '#00f5ff',
+  Completed:   '#50c878',
+};
+
+const Dashboard = ({ stats: liveStats = {}, isLoading, changeRequests = [], onNavigate, onIngestCAD }) => {
+  const safeLive = {
     total_assets: 0,
     total_systems: 0,
     total_components: 0,
-    recent_activity: []
-  });
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const getStats = async () => {
-      try {
-        const data = await fetchDashboardStats();
-        setLiveStats(data);
-      } catch (err) {
-        console.error("Failed to fetch live stats", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    getStats();
-  }, []);
+    recent_activity: [],
+    ...liveStats,
+  };
 
   const stats = [
-    { label: 'Total Change Requests', value: '0', sub: 'No active CRs', icon: GitPullRequest, color: 'accent' },
-    { label: 'Pending Approvals', value: '0', sub: 'Clean Queue', icon: Clock, color: 'warning' },
-    { label: 'System Integrity', value: liveStats.total_systems > 0 ? '100%' : '0%', sub: 'Operational', icon: Activity, color: 'success' },
-    { label: 'Compliance Index', value: liveStats.total_assets > 0 ? '100%' : '0%', sub: 'Verified', icon: CheckCircle, color: 'success' },
+    { label: 'Total Change Requests', value: changeRequests.length.toString(), sub: changeRequests.length === 0 ? 'No active CRs' : 'Active', icon: GitPullRequest, color: 'accent' },
+    { label: 'Pending Approvals', value: changeRequests.filter(c => (c.status || '').toLowerCase() === 'pending').length.toString(), sub: 'Awaiting review', icon: Clock, color: 'warning' },
+    { label: 'System Integrity', value: safeLive.total_systems > 0 ? '100%' : '0%', sub: 'Operational', icon: Activity, color: 'success' },
+    { label: 'Compliance Index', value: safeLive.total_assets > 0 ? '100%' : '0%', sub: 'Verified', icon: CheckCircle, color: 'success' },
     { label: 'Est. Cost Impact', value: '₹0', sub: 'No active changes', icon: Zap, color: 'warning' },
     { label: 'Risk Exposure', value: 'Low', sub: 'No threats detected', icon: AlertTriangle, color: 'success' },
-    { label: 'Active Components', value: liveStats.total_components.toLocaleString(), sub: 'In Neo4j Graph', icon: TrendingUp, color: 'accent' },
-    { label: 'CAD Assets Uploaded', value: liveStats.total_assets.toString(), sub: 'Processed Files', icon: UploadCloud, color: 'accent' },
+    { label: 'Active Components', value: safeLive.total_components.toLocaleString(), sub: 'In Neo4j Graph', icon: TrendingUp, color: 'accent' },
+    { label: 'CAD Assets Uploaded', value: safeLive.total_assets.toString(), sub: 'Processed Files', icon: UploadCloud, color: 'accent' },
   ];
 
-  const activity = liveStats.recent_activity || [];
+  const activity = safeLive.recent_activity || [];
+  const user = JSON.parse(localStorage.getItem('user') || '{"name": "Chief Architect"}');
+
+  // CR Status counts
+  const crStatusCounts = {
+    Draft:        changeRequests.filter(c => (c.status || '').toLowerCase() === 'draft').length,
+    Pending:      changeRequests.filter(c => (c.status || '').toLowerCase() === 'pending').length,
+    Approved:     changeRequests.filter(c => (c.status || '').toLowerCase() === 'approved').length,
+    'In Progress': changeRequests.filter(c => (c.status || '').toLowerCase() === 'in progress').length,
+  };
+  const maxCount = Math.max(...Object.values(crStatusCounts), 1);
+
+  const quickActions = [
+    { label: 'New Change Request', sub: 'Submit an engineering CR', icon: GitBranch, action: () => onNavigate && onNavigate('change-requests') },
+    { label: 'Upload CAD File', sub: 'Upload and visualize drawings', icon: UploadCloud, action: () => onIngestCAD && onIngestCAD() },
+    { label: 'View BOM', sub: 'Browse component registry', icon: Database, action: () => onNavigate && onNavigate('bom') },
+    { label: 'Compliance Check', sub: 'Run rule validation', icon: ShieldCheck, action: () => onNavigate && onNavigate('compliance') },
+  ];
+
+  const quickActionIcons = ['#00f5ff', '#00f5ff', '#00f5ff', '#00ffcc'];
 
   return (
     <div className="dashboard-content-wrapper">
+      {/* Header */}
       <div className="dashboard-header">
         <div>
           <h1 className="page-title">Command Center</h1>
           <p className="page-desc">Enterprise-level engineering intelligence and change management oversight.</p>
         </div>
         <div className="user-welcome">
-          <span>Welcome back, <strong>Chief Architect</strong></span>
+          <span>Welcome back, <strong>{user.name}</strong></span>
           <div className="live-pulse">Live Feed</div>
         </div>
       </div>
 
+      {/* Stats Grid */}
       <div className="stats-grid">
         {stats.map((stat, i) => (
           <div key={i} className="stat-card">
@@ -75,49 +83,145 @@ const Dashboard = () => {
         ))}
       </div>
 
-      <div className="bottom-grid">
-        <div className="card-panel">
-          <div className="section-header">
-            <h3>Program Distribution</h3>
-            <ExternalLink size={16} className="text-muted" />
-          </div>
-          <div className="bar-chart-mock">
-            {[80, 45, 90, 60].map((h, i) => (
-              <div key={i} className="bar-wrapper">
-                <div className="bar" style={{ height: `${h}%` }}></div>
-                <span className="bar-label">PROG {i+1}</span>
-              </div>
-            ))}
+      {/* Middle Row: CR Status + Recent Activity */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.8fr', gap: 20, marginBottom: 20 }}>
+
+        {/* CR Status Bar Chart */}
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+          borderRadius: 12, padding: 24,
+        }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+            Change Request Status
+          </span>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', marginTop: 32, height: 120, gap: 8 }}>
+            {Object.entries(crStatusCounts).map(([label, count]) => {
+              const pct = Math.max((count / maxCount) * 100, count === 0 ? 0 : 8);
+              const color = statusIconColor[label] || '#848d97';
+              return (
+                <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flex: 1 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color }}>{count > 0 ? count : ''}</span>
+                  <div style={{
+                    width: '100%', background: `${color}22`,
+                    borderRadius: 4, height: 80, display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: '100%', height: `${pct}%`,
+                      background: count === 0 ? 'transparent' : color,
+                      borderRadius: 4, transition: 'height 0.5s ease',
+                      minHeight: count === 0 ? 0 : 4,
+                    }} />
+                  </div>
+                  <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center' }}>
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="card-panel">
-          <div className="section-header">
-            <h3>Recent Engineering Activity</h3>
-            <span className="badge-outline">Live</span>
+        {/* Recent Activity */}
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+          borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+              Recent Activity
+            </span>
+            <span
+              onClick={() => onNavigate && onNavigate('change-requests')}
+              style={{ fontSize: 12, color: 'var(--accent-color)', cursor: 'pointer', fontWeight: 600 }}
+            >
+              View all
+            </span>
           </div>
-          <div className="activity-feed">
-            {activity.map(item => (
-              <div key={item.id} className="feed-item">
-                <div className="feed-icon">
-                  <User size={14} />
-                </div>
-                <div className="feed-content">
-                  <div className="feed-top">
-                    <span className="feed-title">{item.title}</span>
-                    <span className="feed-time">{item.time}</span>
+
+          {changeRequests.length === 0 && activity.length === 0 ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              No recent activity
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* Merge CRs + asset activity for the feed */}
+              {[
+                ...changeRequests.slice(0, 3).map(cr => ({
+                  id: cr.id,
+                  title: cr.title || 'Change Request',
+                  sub: `Status changed to ${(cr.status || 'pending').toLowerCase()}`,
+                  person: cr.assignedTo || cr.user || '',
+                  date: cr.time ? new Date(Number(cr.time)).toLocaleDateString('en-GB') : '—',
+                  color: statusIconColor[cr.status] || '#848d97',
+                })),
+                ...activity.slice(0, Math.max(0, 5 - changeRequests.length)).map(item => ({
+                  id: item.id,
+                  title: item.title || 'CAD Data Ingested',
+                  sub: item.action || 'Asset ingested',
+                  person: item.user || '',
+                  date: 'Recently',
+                  color: '#00f5ff',
+                })),
+              ].slice(0, 5).map((item, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '10px 0',
+                  borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                }}>
+                  <TriangleAlert size={16} style={{ color: item.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {item.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
                   </div>
-                  <p className="feed-action">{item.action}</p>
-                  <div className="feed-footer">
-                    <span className="feed-user">{item.user}</span>
-                    <span className={`feed-tag tag-${item.type}`}>{item.type}</span>
-                    <span className="feed-priority">Priority: {item.priority}</span>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{item.person}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{item.date}</div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
+      </div>
+
+      {/* Quick Actions Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
+        {quickActions.map((qa, i) => (
+          <button
+            key={i}
+            onClick={qa.action}
+            style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+              borderRadius: 12, padding: '20px 20px',
+              display: 'flex', alignItems: 'center', gap: 14,
+              cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
+              color: 'var(--text-main)', fontFamily: 'inherit',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.borderColor = quickActionIcons[i];
+              e.currentTarget.style.background = `${quickActionIcons[i]}0d`;
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+              e.currentTarget.style.background = 'var(--bg-card)';
+            }}
+          >
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: `${quickActionIcons[i]}15`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <qa.icon size={18} style={{ color: quickActionIcons[i] }} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{qa.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{qa.sub}</div>
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );

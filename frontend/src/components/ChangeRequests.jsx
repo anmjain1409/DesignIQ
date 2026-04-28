@@ -1,0 +1,414 @@
+import React, { useState } from 'react';
+import {
+  Plus, ExternalLink, X, CheckCircle, Clock, AlertTriangle,
+  GitBranch, Filter, ChevronDown
+} from 'lucide-react';
+import { createChangeRequest } from '../services/api';
+
+const TABS = ['All', 'Draft', 'Pending', 'Approved', 'Rejected', 'In Progress', 'Completed'];
+const DISCIPLINES = ['Propulsion', 'Structural', 'Electrical', 'Navigation', 'HVAC', 'Hydraulics'];
+const PRIORITIES = ['Critical', 'High', 'Medium', 'Low'];
+
+const priorityColors = {
+  Critical: { bg: 'rgba(255,77,77,0.12)', color: '#ff4d4d' },
+  High:     { bg: 'rgba(255,140,0,0.12)',  color: '#ff8c00' },
+  Medium:   { bg: 'rgba(255,204,0,0.12)',  color: '#ffcc00' },
+  Low:      { bg: 'rgba(0,255,204,0.12)',  color: '#00ffcc' },
+};
+
+const statusColors = {
+  Draft:       { bg: 'rgba(132,141,151,0.12)', color: '#848d97' },
+  Pending:     { bg: 'rgba(255,204,0,0.12)',   color: '#ffcc00' },
+  Approved:    { bg: 'rgba(0,255,204,0.12)',   color: '#00ffcc' },
+  Rejected:    { bg: 'rgba(255,77,77,0.12)',   color: '#ff4d4d' },
+  'In Progress': { bg: 'rgba(0,245,255,0.12)', color: '#00f5ff' },
+  Completed:   { bg: 'rgba(80,200,120,0.12)',  color: '#50c878' },
+};
+
+function CRBadge({ label, type = 'status' }) {
+  const map = type === 'priority' ? priorityColors : statusColors;
+  const style = map[label] || { bg: 'rgba(132,141,151,0.12)', color: '#848d97' };
+  return (
+    <span style={{
+      background: style.bg,
+      color: style.color,
+      padding: '3px 10px',
+      borderRadius: 20,
+      fontSize: 11,
+      fontWeight: 700,
+      letterSpacing: '0.03em',
+      display: 'inline-block',
+      whiteSpace: 'nowrap',
+    }}>{label}</span>
+  );
+}
+
+function FormField({ label, children }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function StyledInput({ ...props }) {
+  return (
+    <input
+      {...props}
+      style={{
+        background: 'var(--bg-main)',
+        border: '1px solid var(--border-color)',
+        borderRadius: 8,
+        color: 'var(--text-main)',
+        padding: '10px 14px',
+        fontSize: 13,
+        outline: 'none',
+        width: '100%',
+        fontFamily: 'inherit',
+        transition: 'border-color 0.2s',
+        ...props.style,
+      }}
+      onFocus={e => e.target.style.borderColor = 'var(--accent-color)'}
+      onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+    />
+  );
+}
+
+function StyledSelect({ value, onChange, options, placeholder }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      <select
+        value={value}
+        onChange={onChange}
+        style={{
+          background: 'var(--bg-main)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 8,
+          color: 'var(--text-main)',
+          padding: '10px 32px 10px 14px',
+          fontSize: 13,
+          outline: 'none',
+          width: '100%',
+          fontFamily: 'inherit',
+          appearance: 'none',
+          cursor: 'pointer',
+        }}
+      >
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+      <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+    </div>
+  );
+}
+
+function StyledTextArea({ ...props }) {
+  return (
+    <textarea
+      {...props}
+      style={{
+        background: 'var(--bg-main)',
+        border: '1px solid var(--border-color)',
+        borderRadius: 8,
+        color: 'var(--text-main)',
+        padding: '10px 14px',
+        fontSize: 13,
+        outline: 'none',
+        width: '100%',
+        fontFamily: 'inherit',
+        resize: 'vertical',
+        minHeight: 80,
+        ...props.style,
+      }}
+      onFocus={e => e.target.style.borderColor = 'var(--accent-color)'}
+      onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+    />
+  );
+}
+
+export default function ChangeRequests({ changeRequests = [], onRefresh }) {
+  const [tab, setTab] = useState(0);
+  const [open, setOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [form, setForm] = useState({
+    title: '', desc: '', discipline: 'Propulsion', priority: 'High',
+    assignedTo: '', cost: '', component: ''
+  });
+
+  const filtered = changeRequests.filter(cr =>
+    tab === 0 || (cr.status || '').toLowerCase() === TABS[tab].toLowerCase()
+  );
+
+  const handleSubmit = async () => {
+    if (!form.title.trim()) return;
+    setSubmitting(true);
+    try {
+      await createChangeRequest(
+        form.component || form.title,
+        'Component',
+        {
+          title: form.title,
+          priority: form.priority,
+          discipline: form.discipline,
+        }
+      );
+      setSuccessMsg('Change request submitted successfully!');
+      setTimeout(() => {
+        setSuccessMsg('');
+        setOpen(false);
+        setForm({ title: '', desc: '', discipline: 'Propulsion', priority: 'High', assignedTo: '', cost: '', component: '' });
+        onRefresh && onRefresh();
+      }, 1500);
+    } catch (err) {
+      console.error('CR creation failed:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.01em', marginBottom: 4 }}>Change Requests</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Engineering change request lifecycle management</p>
+        </div>
+        <button
+          onClick={() => setOpen(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: 'var(--accent-color)', color: 'var(--bg-main)',
+            border: 'none', borderRadius: 10, padding: '10px 18px',
+            fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            transition: 'all 0.2s', flexShrink: 0,
+          }}
+          onMouseEnter={e => e.currentTarget.style.filter = 'brightness(1.15)'}
+          onMouseLeave={e => e.currentTarget.style.filter = 'none'}
+        >
+          <Plus size={16} /> New CR
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--border-color)', marginBottom: 20, overflowX: 'auto' }}>
+        {TABS.map((t, i) => {
+          const count = i === 0
+            ? changeRequests.length
+            : changeRequests.filter(cr => (cr.status || '').toLowerCase() === t.toLowerCase()).length;
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(i)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: '10px 16px', whiteSpace: 'nowrap', fontSize: 13,
+                fontFamily: 'inherit', fontWeight: tab === i ? 700 : 400,
+                color: tab === i ? 'var(--accent-color)' : 'var(--text-muted)',
+                borderBottom: tab === i ? '2px solid var(--accent-color)' : '2px solid transparent',
+                marginBottom: -1, transition: 'all 0.15s',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {t}
+              {count > 0 && (
+                <span style={{
+                  background: tab === i ? 'rgba(0,245,255,0.15)' : 'rgba(132,141,151,0.15)',
+                  color: tab === i ? 'var(--accent-color)' : 'var(--text-muted)',
+                  borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700,
+                }}>{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Table */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 12, overflow: 'hidden' }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: '48px 24px', textAlign: 'center' }}>
+            <GitBranch size={32} style={{ opacity: 0.3, margin: '0 auto 12px', display: 'block' }} />
+            <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+              {tab === 0 ? 'No change requests yet. Create one to get started.' : `No ${TABS[tab]} requests.`}
+            </p>
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border-color)', background: 'rgba(255,255,255,0.02)' }}>
+                {['ID', 'Title', 'Component', 'Priority', 'Status', 'Created', ''].map((h, i) => (
+                  <th key={i} style={{
+                    padding: '12px 16px', textAlign: 'left',
+                    fontSize: 10, color: 'var(--text-muted)',
+                    fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                    whiteSpace: 'nowrap',
+                  }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((cr, i) => (
+                <tr
+                  key={cr.id || i}
+                  style={{
+                    borderBottom: i < filtered.length - 1 ? '1px solid var(--border-color)' : 'none',
+                    cursor: 'pointer', transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: 12, fontFamily: 'monospace' }}>
+                    #{String(cr.id || '').slice(0, 10)}
+                  </td>
+                  <td style={{ padding: '14px 16px', maxWidth: 220 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {cr.title || 'Untitled Request'}
+                    </div>
+                  </td>
+                  <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: 12 }}>
+                    {cr.component || '—'}
+                  </td>
+                  <td style={{ padding: '14px 16px' }}>
+                    <CRBadge label={cr.priority || 'Medium'} type="priority" />
+                  </td>
+                  <td style={{ padding: '14px 16px' }}>
+                    <CRBadge label={cr.status || 'Pending'} type="status" />
+                  </td>
+                  <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {cr.time ? new Date(Number(cr.time)).toLocaleDateString() : 'Recently'}
+                  </td>
+                  <td style={{ padding: '14px 16px', color: 'var(--text-muted)' }}>
+                    <ExternalLink size={14} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* New CR Modal */}
+      {open && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
+          backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', zIndex: 1000, padding: 20,
+        }}>
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+            borderRadius: 16, width: '100%', maxWidth: 560,
+            maxHeight: '90vh', overflowY: 'auto', padding: 36,
+            boxShadow: '0 24px 48px rgba(0,0,0,0.5)', position: 'relative',
+          }}>
+            <button
+              onClick={() => setOpen(false)}
+              style={{ position: 'absolute', top: 20, right: 20, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+
+            <h2 style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 4 }}>New Change Request</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24 }}>Submit an engineering change for review</p>
+
+            {successMsg ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '32px 0' }}>
+                <CheckCircle size={48} color="var(--success)" />
+                <p style={{ fontWeight: 600, color: 'var(--success)' }}>{successMsg}</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <FormField label="Title">
+                  <StyledInput
+                    placeholder="e.g., Propulsion Shaft Diameter Increase"
+                    value={form.title}
+                    onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                  />
+                </FormField>
+
+                <FormField label="Description">
+                  <StyledTextArea
+                    placeholder="Describe the change and its rationale..."
+                    value={form.desc}
+                    onChange={e => setForm(f => ({ ...f, desc: e.target.value }))}
+                  />
+                </FormField>
+
+                <FormField label="Affected Component">
+                  <StyledInput
+                    placeholder="e.g., Turbine Housing"
+                    value={form.component}
+                    onChange={e => setForm(f => ({ ...f, component: e.target.value }))}
+                  />
+                </FormField>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <FormField label="Discipline">
+                    <StyledSelect
+                      value={form.discipline}
+                      onChange={e => setForm(f => ({ ...f, discipline: e.target.value }))}
+                      options={DISCIPLINES}
+                    />
+                  </FormField>
+                  <FormField label="Priority">
+                    <StyledSelect
+                      value={form.priority}
+                      onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}
+                      options={PRIORITIES}
+                    />
+                  </FormField>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <FormField label="Assigned To">
+                    <StyledInput
+                      placeholder="Engineer name"
+                      value={form.assignedTo}
+                      onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}
+                    />
+                  </FormField>
+                  <FormField label="Estimated Cost (₹)">
+                    <StyledInput
+                      placeholder="e.g., 50000"
+                      value={form.cost}
+                      onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
+                    />
+                  </FormField>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                  <button
+                    onClick={() => setOpen(false)}
+                    style={{
+                      flex: 1, padding: '12px', borderRadius: 10,
+                      background: 'transparent', border: '1px solid var(--border-color)',
+                      color: 'var(--text-muted)', fontSize: 13, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting || !form.title.trim()}
+                    style={{
+                      flex: 2, padding: '12px', borderRadius: 10,
+                      background: 'var(--accent-color)', border: 'none',
+                      color: 'var(--bg-main)', fontSize: 13, fontWeight: 700,
+                      cursor: submitting ? 'not-allowed' : 'pointer',
+                      opacity: (!form.title.trim() || submitting) ? 0.6 : 1,
+                      fontFamily: 'inherit', transition: 'all 0.2s',
+                    }}
+                  >
+                    {submitting ? 'Submitting...' : 'Submit Change Request'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
