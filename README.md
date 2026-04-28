@@ -51,7 +51,7 @@ python ingest.py
 Start the FastAPI server:
 
 ```bash
-uvicorn backend.main:app --reload
+python -m uvicorn backend.main:app --reload --port 8001
 ```
 *The API will be available at `http://localhost:8000`.*
 
