@@ -25,10 +25,10 @@ const GraphView = ({ data, onNodeClick }) => {
     <div className="graph-container">
       <div className="graph-overlay">
         <div className="graph-legend">
-          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#8b5cf6'}}></div> Asset</div>
-          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#3b82f6'}}></div> System</div>
-          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#f59e0b'}}></div> Component</div>
-          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#ef4444'}}></div> Property</div>
+          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#8b5cf6'}}></div> <span>Asset</span></div>
+          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#3b82f6'}}></div> <span>System</span></div>
+          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#f59e0b'}}></div> <span>Component</span></div>
+          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#ef4444'}}></div> <span>Property</span></div>
         </div>
       </div>
       

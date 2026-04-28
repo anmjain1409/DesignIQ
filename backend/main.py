@@ -62,13 +62,13 @@ def login(user: UserLogin):
     return {"access_token": token, "token_type": "bearer"}
 
 @app.get("/systems")
-def get_systems(industry: str):
-    data = neo4j_client.get_systems_by_industry(industry)
+def get_systems(industry: str, user_email: str = Depends(get_current_user)):
+    data = neo4j_client.get_systems_by_industry(industry, user_email)
     return {"industry": industry, "systems": data}
 
 @app.get("/graph")
-def get_graph(asset: str):
-    graph_data = neo4j_client.get_graph_by_asset(asset)
+def get_graph(asset: str, type: str = "Both", user_email: str = Depends(get_current_user)):
+    graph_data = neo4j_client.get_graph_by_asset(asset, user_email, type)
     return graph_data
 
 @app.post("/cad-ingest")
@@ -82,9 +82,27 @@ async def cad_ingest(file: UploadFile = File(...), user_email: str = Depends(get
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/impact-analysis")
-def impact_analysis(request: ImpactRequest):
-    report = ai_engine.perform_impact_analysis(request.component_name, request.node_type)
+def impact_analysis(request: ImpactRequest, user_email: str = Depends(get_current_user)):
+    report = ai_engine.perform_impact_analysis(request.component_name, request.node_type, user_email)
     return report
+
+@app.get("/dashboard-stats")
+def get_dashboard_stats(user_email: str = Depends(get_current_user)):
+    stats = neo4j_client.get_dashboard_stats(user_email)
+    return stats
+
+@app.get("/assets")
+def get_assets(user_email: str = Depends(get_current_user)):
+    assets = neo4j_client.get_assets(user_email)
+    return assets
+
+@app.post("/change-requests")
+def create_cr(request: ImpactRequest, user_email: str = Depends(get_current_user)):
+    return neo4j_client.create_change_request(request.component_name, request.node_type, user_email)
+
+@app.get("/change-requests")
+def get_crs(user_email: str = Depends(get_current_user)):
+    return neo4j_client.get_change_requests(user_email)
 
 @app.on_event("shutdown")
 def shutdown_event():

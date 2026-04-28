@@ -18,12 +18,12 @@ class Neo4jClient:
             result = session.run(query, parameters)
             return [record.data() for record in result]
 
-    def get_systems_by_industry(self, industry: str):
+    def get_systems_by_industry(self, industry: str, user_email: str):
         query = """
-        MATCH (a:Asset {industry: $industry})-[:HAS_SYSTEM]->(s:System)
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset {industry: $industry})-[:HAS_SYSTEM]->(s:System)
         RETURN a.name AS product, s.name AS system, s.generic AS generic_system
         """
-        return self._execute_query(query, {"industry": industry})
+        return self._execute_query(query, {"industry": industry, "user_email": user_email})
 
     def create_user(self, email, hashed_password):
         query = """
@@ -38,17 +38,24 @@ class Neo4jClient:
         result = self._execute_query(query, {"email": email})
         return result[0]['u'] if result else None
 
-    def get_graph_by_asset(self, asset_name: str):
+    def get_graph_by_asset(self, asset_name: str, user_email: str, filter_type: str = "Both"):
         query = """
-        MATCH (a:Asset {name: $asset_name})
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset {name: $asset_name})
         OPTIONAL MATCH (a)-[r1:HAS_SYSTEM]->(s:System)
         OPTIONAL MATCH (s)-[r2:HAS_COMPONENT]->(c:Component)
+        WHERE $filter_type = 'Both' OR c.type = $filter_type
+        
         OPTIONAL MATCH (c)-[r3:CONNECTED_TO]->(c2:Component)
+        WHERE $filter_type = 'Both' OR c2.type = $filter_type
+        
+        OPTIONAL MATCH (c)-[r_rep:REPRESENTS]-(c_rep:Component)
+        WHERE $filter_type = 'Both'
+        
         OPTIONAL MATCH (c)-[r4:HAS_PROPERTY]->(prop:Property)
         
-        RETURN a, r1, s, r2, c, r3, c2, r4, prop
+        RETURN a, r1, s, r2, c, r3, c2, r4, prop, r_rep, c_rep
         """
-        records = self._execute_query(query, {"asset_name": asset_name})
+        records = self._execute_query(query, {"asset_name": asset_name, "user_email": user_email, "filter_type": filter_type})
         
         # Transform to node and link format for react-force-graph
         nodes_dict = {}
@@ -66,6 +73,8 @@ class Neo4jClient:
                 }
                 if extra_labels:
                     nodes_dict[node_id].update(extra_labels)
+                if 'type' in node_obj:
+                    nodes_dict[node_id]["type"] = node_obj['type']
             return node_id
 
         for record in records:
@@ -73,6 +82,7 @@ class Neo4jClient:
             s_id = add_node(record.get('s'), "System", {"generic": record.get('s', {}).get('generic')})
             c_id = add_node(record.get('c'), "Component")
             c2_id = add_node(record.get('c2'), "Component")
+            c_rep_id = add_node(record.get('c_rep'), "Component")
             prop_id = add_node(record.get('prop'), "Property")
             
             if a_id and s_id and {"source": a_id, "target": s_id} not in links:
@@ -83,6 +93,8 @@ class Neo4jClient:
                 links.append({"source": c_id, "target": c2_id})
             if c_id and prop_id and {"source": c_id, "target": prop_id} not in links:
                 links.append({"source": c_id, "target": prop_id})
+            if c_id and c_rep_id and {"source": c_id, "target": c_rep_id} not in links:
+                links.append({"source": c_id, "target": c_rep_id})
                 
         return {
             "nodes": list(nodes_dict.values()),
@@ -126,23 +138,100 @@ class Neo4jClient:
         self._execute_query(query, parameters)
         return True
 
-    def run_impact_analysis(self, node_name: str, node_type: str):
+    def run_impact_analysis(self, node_name: str, node_type: str, user_email: str):
         # Impact Analysis Engine: Graph Traversal CONNECTED_TO*
-        # Find all upstream (affected) nodes
+        # Ensure the node belongs to the user first
         query = f"""
-        MATCH (n:{node_type} {{name: $node_name}})<-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*]-(upstream)
+        MATCH (u:User {{email: $user_email}})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(n:{node_type} {{name: $node_name}})
+        WITH n
+        MATCH (n)<-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*]-(upstream)
         RETURN DISTINCT labels(upstream)[0] AS type, upstream.name AS name
         """
-        records = self._execute_query(query, {"node_name": node_name})
+        records = self._execute_query(query, {"node_name": node_name, "user_email": user_email})
         return records
 
-    def get_node_properties(self, node_name: str, node_type: str):
+    def create_change_request(self, component_name: str, node_type: str, user_email: str):
+        query = """
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(c:Component {name: $component_name})
+        CREATE (cr:ChangeRequest {
+            id: 'CR-' + apoc.text.random(5),
+            title: 'Design Change: ' + c.name,
+            status: 'Pending',
+            priority: 'High',
+            createdAt: datetime(),
+            user: $user_email
+        })
+        MERGE (cr)-[:AFFECTS]->(c)
+        RETURN cr
+        """
+        # Using a simpler query if APOC is not available, but let's assume it is or use a simpler ID
+        query_simple = """
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(c:Component {name: $component_name})
+        MERGE (cr:ChangeRequest {
+            title: 'Design Change: ' + c.name,
+            user: $user_email
+        })
+        ON CREATE SET 
+            cr.id = 'CR-' + toString(timestamp()),
+            cr.status = 'Pending',
+            cr.priority = 'Medium',
+            cr.createdAt = timestamp()
+        MERGE (cr)-[:AFFECTS]->(c)
+        RETURN cr
+        """
+        return self._execute_query(query_simple, {"component_name": component_name, "user_email": user_email})
+
+    def get_change_requests(self, user_email: str):
+        query = """
+        MATCH (cr:ChangeRequest {user: $user_email})-[:AFFECTS]->(c:Component)
+        RETURN cr.id AS id, cr.title AS title, cr.status AS status, cr.priority AS priority, c.name AS component, cr.createdAt AS time
+        ORDER BY cr.createdAt DESC
+        """
+        return self._execute_query(query, {"user_email": user_email})
+
+    def get_assets(self, user_email: str):
+        query = """
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)
+        RETURN a.name AS name, a.industry AS industry, id(a) AS id
+        """
+        return self._execute_query(query, {"user_email": user_email})
+
+    def get_dashboard_stats(self, user_email: str):
+        query = """
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)
+        WITH a
+        OPTIONAL MATCH (a)-[:HAS_SYSTEM]->(s:System)
+        OPTIONAL MATCH (s)-[:HAS_COMPONENT]->(c:Component)
+        
+        // Get recent ingestions
+        WITH count(DISTINCT a) AS total_assets, 
+             count(DISTINCT s) AS total_systems, 
+             count(DISTINCT c) AS total_components,
+             u
+        MATCH (u)-[:OWNS]->(asset:Asset)
+        RETURN 
+            total_assets, total_systems, total_components,
+            collect({
+                id: id(asset),
+                title: asset.name,
+                type: 'ingestion',
+                time: 'Recently',
+                action: 'CAD Data Ingested',
+                user: u.email
+            })[0..5] AS recent_activity
+        """
+        result = self._execute_query(query, {"user_email": user_email})
+        if not result:
+            return {"total_assets": 0, "total_systems": 0, "total_components": 0, "recent_activity": []}
+        return result[0]
+
+    def get_node_properties(self, node_name: str, node_type: str, user_email: str):
         query = f"""
-        MATCH (n:{node_type} {{name: $node_name}})
+        MATCH (u:User {{email: $user_email}})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(n:{node_type} {{name: $node_name}})
         OPTIONAL MATCH (n)-[:HAS_PROPERTY]->(p:Property)
         RETURN n, collect({{key: p.name, value: p.value}}) AS properties
         """
-        result = self._execute_query(query, {"node_name": node_name})
+        result = self._execute_query(query, {"node_name": node_name, "user_email": user_email})
         if not result:
             return None
         

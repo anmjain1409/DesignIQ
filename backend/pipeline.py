@@ -41,7 +41,7 @@ class CADPipeline:
         neo4j_client.ingest_cad_data(generic_model, generic_model['industry'], user_email)
         
         # 4. Impact Analysis
-        impact_report = ai_engine.perform_impact_analysis(generic_model['part'], "Component")
+        impact_report = ai_engine.perform_impact_analysis(generic_model['part'], "Component", user_email)
         
         return {
             "status": "success",

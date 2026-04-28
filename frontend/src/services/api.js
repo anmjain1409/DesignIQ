@@ -23,9 +23,9 @@ export const fetchSystems = async (industry) => {
   return response.data;
 };
 
-export const fetchGraph = async (asset) => {
+export const fetchGraph = async (asset, type = "Both") => {
   const response = await axios.get(`${API_BASE_URL}/graph`, {
-    params: { asset }
+    params: { asset, type }
   });
   return response.data;
 };
@@ -57,5 +57,28 @@ export const login = async (email, password) => {
 
 export const signup = async (email, password) => {
   const response = await axios.post(`${API_BASE_URL}/auth/signup`, { email, password });
+  return response.data;
+};
+
+export const fetchDashboardStats = async () => {
+  const response = await axios.get(`${API_BASE_URL}/dashboard-stats`);
+  return response.data;
+};
+
+export const fetchAssets = async () => {
+  const response = await axios.get(`${API_BASE_URL}/assets`);
+  return response.data;
+};
+
+export const fetchChangeRequests = async () => {
+  const response = await axios.get(`${API_BASE_URL}/change-requests`);
+  return response.data;
+};
+
+export const createChangeRequest = async (nodeName, nodeType) => {
+  const response = await axios.post(`${API_BASE_URL}/change-requests`, {
+    component_name: nodeName,
+    node_type: nodeType
+  });
   return response.data;
 };

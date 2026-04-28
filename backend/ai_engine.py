@@ -4,13 +4,13 @@ class AIEngine:
     def __init__(self):
         self.db = neo4j_client
 
-    def perform_impact_analysis(self, component_name: str, node_type: str):
+    def perform_impact_analysis(self, component_name: str, node_type: str, user_email: str):
         """
         Given a node name and type, find all affected systems and assets,
         and also fetch the node's own properties.
         """
-        affected_nodes = self.db.run_impact_analysis(component_name, node_type)
-        node_details = self.db.get_node_properties(component_name, node_type)
+        affected_nodes = self.db.run_impact_analysis(component_name, node_type, user_email)
+        node_details = self.db.get_node_properties(component_name, node_type, user_email)
         
         impact_report = {
             "target_component": component_name,

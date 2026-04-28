@@ -13,7 +13,7 @@ const PIPELINE_STEPS = [
 
 const CadIngestionModal = ({ onClose, onComplete }) => {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [reportMode, setReportMode] = useState('combined'); // 2d, 3d, combined
+  const [reportMode, setReportMode] = useState('Both'); // 2D, 3D, Both
   const [currentStep, setCurrentStep] = useState(0);
   const [status, setStatus] = useState('idle'); // idle, processing, success, error
   const [report, setReport] = useState(null);
@@ -77,9 +77,9 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
             <div className="form-group">
               <label>Report Output Type</label>
               <div className="mode-selector">
-                <button type="button" className={reportMode === '2d' ? 'active' : ''} onClick={() => setReportMode('2d')}>2D Only</button>
-                <button type="button" className={reportMode === '3d' ? 'active' : ''} onClick={() => setReportMode('3d')}>3D Only</button>
-                <button type="button" className={reportMode === 'combined' ? 'active' : ''} onClick={() => setReportMode('combined')}>Combined</button>
+                <button type="button" className={reportMode === '2D' ? 'active' : ''} onClick={() => setReportMode('2D')}>2D Only</button>
+                <button type="button" className={reportMode === '3D' ? 'active' : ''} onClick={() => setReportMode('3D')}>3D Only</button>
+                <button type="button" className={reportMode === 'Both' ? 'active' : ''} onClick={() => setReportMode('Both')}>Both</button>
               </div>
             </div>
 
@@ -180,9 +180,9 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
                   {/* Filtered Dynamic Fields */}
                   {Object.entries(report.extracted_data?.raw_metadata || {})
                     .filter(([key]) => {
-                      if (reportMode === 'combined') return true;
-                      if (reportMode === '2d') return ['geometry', 'dimensions', 'annotations'].includes(key.toLowerCase());
-                      if (reportMode === '3d') return ['components', 'assembly_structure', 'connections'].includes(key.toLowerCase());
+                      if (reportMode === 'Both') return true;
+                      if (reportMode === '2D') return ['geometry', 'dimensions', 'annotations'].includes(key.toLowerCase());
+                      if (reportMode === '3D') return ['components', 'assembly_structure', 'connections'].includes(key.toLowerCase());
                       return true;
                     })
                     .map(([key, val]) => (
@@ -213,7 +213,7 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
               </div>
             </div>
 
-            <button className="primary-btn mt-6 w-full" onClick={() => { onClose(); onComplete(); }}>
+            <button className="primary-btn mt-6 w-full" onClick={() => { onClose(); onComplete(reportMode, report); }}>
               Open Unified Graph
             </button>
           </div>

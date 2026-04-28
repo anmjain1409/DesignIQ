@@ -1,7 +1,25 @@
-import React from 'react';
-import { Activity } from 'lucide-react';
+import React, { useState } from 'react';
+import { Activity, PlusCircle, Check } from 'lucide-react';
+import { createChangeRequest } from '../services/api';
 
 const ImpactPanel = ({ impactData, isLoading }) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [created, setCreated] = useState(false);
+
+  const handleInitiateCR = async () => {
+    setIsCreating(true);
+    try {
+      await createChangeRequest(impactData.target_component, impactData.node_type);
+      setCreated(true);
+      setTimeout(() => setCreated(false), 3000);
+    } catch (err) {
+      console.error("Failed to create CR", err);
+      alert("Error initiating change request");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="impact-content empty-state">
@@ -26,10 +44,21 @@ const ImpactPanel = ({ impactData, isLoading }) => {
   return (
     <div className="impact-content">
       <div className="impact-header">
-        <h2 className="impact-title">Impact Report</h2>
-        <div className="impact-subtitle">Target: <strong>{impactData.target_component}</strong></div>
-        <div className={`risk-badge risk-${impactData.risk_level}`}>
-          Risk Level: {impactData.risk_level}
+        <div>
+          <h2 className="impact-title">Impact Report</h2>
+          <div className="impact-subtitle">Target: <strong>{impactData.target_component}</strong></div>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div className={`risk-badge risk-${impactData.risk_level}`}>
+            Risk Level: {impactData.risk_level}
+          </div>
+          <button 
+            className={`primary-btn-mini ${created ? 'success' : ''}`} 
+            onClick={handleInitiateCR}
+            disabled={isCreating || created}
+          >
+            {isCreating ? 'Processing...' : created ? <><Check size={14} /> Created</> : <><PlusCircle size={14} /> Initiate CR</>}
+          </button>
         </div>
       </div>
 
