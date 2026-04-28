@@ -1,0 +1,9 @@
+product,industry,system,assembly,part,supplier
+Sedan Car,automobile,Chassis,Frame,Aluminum Beams,AlloyWorks
+Sedan Car,automobile,Chassis,Suspension,Shock Absorber,RideSmooth
+Sedan Car,automobile,Engine,V6 Engine Block,Pistons,EnginePartsCo
+Sedan Car,automobile,Engine,V6 Engine Block,Valves,EnginePartsCo
+Sedan Car,automobile,Braking System,Disc Brakes,Brake Pads,SafeStop
+Sedan Car,automobile,Braking System,Disc Brakes,Calipers,SafeStop
+Sedan Car,automobile,Electronics,ECU,Microcontroller,SiliconChips
+Sedan Car,automobile,Electronics,Infotainment,Touch Screen,DisplayTech

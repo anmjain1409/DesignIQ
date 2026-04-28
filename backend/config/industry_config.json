@@ -1,0 +1,24 @@
+{
+  "ship": {
+    "Hull Structure": "Structure System",
+    "Propulsion": "Power System",
+    "Weapon Systems": "Functional System",
+    "Sensors & Electronics": "Sensing System"
+  },
+  "automobile": {
+    "Chassis": "Structure System",
+    "Engine": "Power System",
+    "Braking System": "Safety System",
+    "Electronics": "Control System"
+  },
+  "aerospace": {
+    "Fuselage": "Structure System",
+    "Engine": "Power System",
+    "Avionics": "Control System"
+  },
+  "oil_gas": {
+    "Piping": "Structure System",
+    "Pump System": "Power System",
+    "Safety Valve": "Safety System"
+  }
+}

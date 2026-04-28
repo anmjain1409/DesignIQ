@@ -1,0 +1,7 @@
+product,industry,system,assembly,part,supplier
+Jet Airliner,aerospace,Fuselage,Cabin Section,Composite Panels,AeroComposites
+Jet Airliner,aerospace,Fuselage,Wing Box,Titanium Spars,TitanMetals
+Jet Airliner,aerospace,Engine,Turbofan,Fan Blades,AeroBlades
+Jet Airliner,aerospace,Engine,Turbofan,Compressor,JetTech
+Jet Airliner,aerospace,Avionics,Flight Computer,Processor,SiliconChips
+Jet Airliner,aerospace,Avionics,Navigation,GPS Module,SatNavInc

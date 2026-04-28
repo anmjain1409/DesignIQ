@@ -1,0 +1,7 @@
+product,industry,system,assembly,part,supplier
+Offshore Rig,oil_gas,Piping,Main Pipeline,Steel Pipes,SteelCorp
+Offshore Rig,oil_gas,Piping,Manifold,Flanges,PipeFittingsInc
+Offshore Rig,oil_gas,Pump System,Centrifugal Pump,Impeller,FluidDynamics
+Offshore Rig,oil_gas,Pump System,Centrifugal Pump,Bearings,MotionParts
+Offshore Rig,oil_gas,Safety Valve,Blowout Preventer,Hydraulic Actuator,SafeHydraulics
+Offshore Rig,oil_gas,Safety Valve,Blowout Preventer,Seals,RubberTech

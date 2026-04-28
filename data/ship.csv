@@ -1,0 +1,9 @@
+product,industry,system,assembly,part,supplier
+Missile Boat,ship,Hull Structure,Main Deck,Steel Plate,SteelCorp
+Missile Boat,ship,Hull Structure,Main Deck,Welding Consumables,WeldTech
+Missile Boat,ship,Propulsion,Gas Turbine,Turbine Blades,AeroBlades
+Missile Boat,ship,Propulsion,Gas Turbine,Fuel Injector,PrecisionFuel
+Missile Boat,ship,Weapon Systems,Missile Launcher,Launch Tube,ArmamentSys
+Missile Boat,ship,Weapon Systems,Missile Launcher,Control Unit,ElectroSys
+Missile Boat,ship,Sensors & Electronics,Radar Array,Antenna Panel,ElectroSys
+Missile Boat,ship,Sensors & Electronics,Sonar,Transducer,AcousticTech
