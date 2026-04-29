@@ -8,6 +8,7 @@ from backend.neo4j_client import neo4j_client
 from backend.ai_engine import ai_engine
 from backend.pipeline import cad_pipeline
 from backend.auth import get_password_hash, verify_password, create_access_token, decode_access_token
+from backend.analysis_service import analysis_service
 
 app = FastAPI(title="DesignIQ - Secure CAD Platform")
 
@@ -37,6 +38,21 @@ class ImpactRequest(BaseModel):
     title: Optional[str] = None
     priority: Optional[str] = 'Medium'
     discipline: Optional[str] = 'General'
+
+class AnalyzeChangeRequest(BaseModel):
+    title: str
+    description: str
+    component: str
+    discipline: str
+    priority: str
+
+class SubmitChangeRequestModel(BaseModel):
+    title: str
+    description: str
+    component: str
+    discipline: str
+    priority: str
+    analysis_results: dict
 
 # Auth Dependency
 async def get_current_user(authorization: Optional[str] = Header(None)):
@@ -119,6 +135,45 @@ def create_cr(request: ImpactRequest, user_email: str = Depends(get_current_user
 @app.get("/change-requests")
 def get_crs(user_email: str = Depends(get_current_user)):
     return neo4j_client.get_change_requests(user_email)
+
+@app.post("/analyze-change")
+def analyze_change(request: AnalyzeChangeRequest, user_email: str = Depends(get_current_user)):
+    return analysis_service.analyze_change(request.component, request.discipline, user_email)
+
+@app.post("/submit-change")
+def submit_change(request: SubmitChangeRequestModel, user_email: str = Depends(get_current_user)):
+    cr_title = request.title or f'Design Change: {request.component}'
+    query = """
+    MATCH (u:User {email: $user_email})
+    OPTIONAL MATCH (u)-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(c:Component {name: $component_name})
+    WITH DISTINCT u, c
+    CREATE (cr:ChangeRequest {
+        id: 'CR-' + toString(timestamp()),
+        title: $cr_title,
+        description: $description,
+        status: 'Pending',
+        priority: $priority,
+        discipline: $discipline,
+        component: $component_name,
+        createdAt: timestamp(),
+        user: $user_email,
+        analysis_results: $analysis_results
+    })
+    FOREACH (_ IN CASE WHEN c IS NOT NULL THEN [1] ELSE [] END |
+        MERGE (cr)-[:AFFECTS]->(c)
+    )
+    RETURN cr
+    """
+    result = neo4j_client._execute_query(query, {
+        "user_email": user_email,
+        "component_name": request.component,
+        "cr_title": cr_title,
+        "description": request.description,
+        "priority": request.priority,
+        "discipline": request.discipline,
+        "analysis_results": json.dumps(request.analysis_results)
+    })
+    return {"message": "Change request submitted", "data": result}
 
 @app.on_event("shutdown")
 def shutdown_event():

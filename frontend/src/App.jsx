@@ -90,6 +90,7 @@ function App() {
 
   useEffect(() => {
     const initData = async () => {
+      if (!isLoggedIn) return;
       setIsStatsLoading(true);
       try {
         const [statsData, assetsData, crData] = await Promise.all([
@@ -107,7 +108,7 @@ function App() {
       }
     };
     initData();
-  }, [view]);
+  }, [view, isLoggedIn]);
 
   const formatDate = (date) => {
     const options = { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' };

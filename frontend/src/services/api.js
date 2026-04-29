@@ -11,6 +11,19 @@ axios.interceptors.request.use(config => {
   return config;
 });
 
+// Add interceptor to handle 401 unauthorized errors
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401 && !error.config.url.includes('/auth/login')) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const fetchConfig = async () => {
   const response = await axios.get(`${API_BASE_URL}/config`);
   return response.data;
@@ -81,5 +94,15 @@ export const createChangeRequest = async (componentName, nodeType, extra = {}) =
     node_type: nodeType,
     ...extra
   });
+  return response.data;
+};
+
+export const analyzeChangeRequest = async (data) => {
+  const response = await axios.post(`${API_BASE_URL}/analyze-change`, data);
+  return response.data;
+};
+
+export const submitChangeRequest = async (data) => {
+  const response = await axios.post(`${API_BASE_URL}/submit-change`, data);
   return response.data;
 };

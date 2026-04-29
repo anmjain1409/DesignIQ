@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
   Plus, ExternalLink, X, CheckCircle, Clock, AlertTriangle,
-  GitBranch, Filter, ChevronDown
+  GitBranch, Filter, ChevronDown, Activity, Settings, Calendar, DollarSign, Users
 } from 'lucide-react';
-import { createChangeRequest } from '../services/api';
+import { analyzeChangeRequest, submitChangeRequest } from '../services/api';
 
 const TABS = ['All', 'Draft', 'Pending', 'Approved', 'Rejected', 'In Progress', 'Completed'];
 const DISCIPLINES = ['Propulsion', 'Structural', 'Electrical', 'Navigation', 'HVAC', 'Hydraulics'];
@@ -129,35 +129,53 @@ function StyledTextArea({ ...props }) {
 export default function ChangeRequests({ changeRequests = [], onRefresh }) {
   const [tab, setTab] = useState(0);
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState(1);
+  const [analyzing, setAnalyzing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [analysisResult, setAnalysisResult] = useState(null);
   const [form, setForm] = useState({
-    title: '', desc: '', discipline: 'Propulsion', priority: 'High',
-    assignedTo: '', cost: '', component: ''
+    title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: '', assignedTo: ''
   });
 
   const filtered = changeRequests.filter(cr =>
     tab === 0 || (cr.status || '').toLowerCase() === TABS[tab].toLowerCase()
   );
 
-  const handleSubmit = async () => {
-    if (!form.title.trim()) return;
+  const handleAnalyze = async () => {
+    if (!form.title.trim() || !form.component.trim()) return;
+    setAnalyzing(true);
+    try {
+      const payload = { ...form, description: form.desc };
+      const result = await analyzeChangeRequest(payload);
+      setAnalysisResult(result);
+      setStep(2);
+    } catch (err) {
+      console.error('Analysis failed:', err);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleFinalSubmit = async () => {
     setSubmitting(true);
     try {
-      await createChangeRequest(
-        form.component || form.title,
-        'Component',
-        {
-          title: form.title,
-          priority: form.priority,
-          discipline: form.discipline,
+      await submitChangeRequest({
+        ...form,
+        description: form.desc,
+        analysis_results: {
+          ...analysisResult,
+          assigned_engineer: form.assignedTo
         }
-      );
+      });
       setSuccessMsg('Change request submitted successfully!');
+      setStep(3);
       setTimeout(() => {
         setSuccessMsg('');
         setOpen(false);
-        setForm({ title: '', desc: '', discipline: 'Propulsion', priority: 'High', assignedTo: '', cost: '', component: '' });
+        setStep(1);
+        setForm({ title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: '', assignedTo: '' });
+        setAnalysisResult(null);
         onRefresh && onRefresh();
       }, 1500);
     } catch (err) {
@@ -165,6 +183,13 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const resetModal = () => {
+    setOpen(false);
+    setStep(1);
+    setAnalysisResult(null);
+    setForm({ title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: '', assignedTo: '' });
   };
 
   return (
@@ -177,7 +202,7 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Engineering change request lifecycle management</p>
         </div>
         <button
-          onClick={() => setOpen(true)}
+          onClick={() => { setStep(1); setOpen(true); }}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             background: 'var(--accent-color)', color: 'var(--bg-main)',
@@ -303,21 +328,27 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
             boxShadow: '0 24px 48px rgba(0,0,0,0.5)', position: 'relative',
           }}>
             <button
-              onClick={() => setOpen(false)}
+              onClick={resetModal}
               style={{ position: 'absolute', top: 20, right: 20, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
             >
               <X size={20} />
             </button>
 
-            <h2 style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 4 }}>New Change Request</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24 }}>Submit an engineering change for review</p>
+            <h2 style={{ fontWeight: 700, fontSize: '1.25rem', marginBottom: 4 }}>
+              {step === 1 ? 'New Change Request' : step === 2 ? 'Impact Analysis Results' : 'Success'}
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24 }}>
+              {step === 1 ? 'Submit an engineering change for review' : step === 2 ? 'Review the computed impact before final submission' : 'Your request has been saved'}
+            </p>
 
-            {successMsg ? (
+            {step === 3 && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '32px 0' }}>
                 <CheckCircle size={48} color="var(--success)" />
                 <p style={{ fontWeight: 600, color: 'var(--success)' }}>{successMsg}</p>
               </div>
-            ) : (
+            )}
+
+            {step === 1 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <FormField label="Title">
                   <StyledInput
@@ -360,26 +391,9 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
                   </FormField>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <FormField label="Assigned To">
-                    <StyledInput
-                      placeholder="Engineer name"
-                      value={form.assignedTo}
-                      onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}
-                    />
-                  </FormField>
-                  <FormField label="Estimated Cost (₹)">
-                    <StyledInput
-                      placeholder="e.g., 50000"
-                      value={form.cost}
-                      onChange={e => setForm(f => ({ ...f, cost: e.target.value }))}
-                    />
-                  </FormField>
-                </div>
-
                 <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
                   <button
-                    onClick={() => setOpen(false)}
+                    onClick={resetModal}
                     style={{
                       flex: 1, padding: '12px', borderRadius: 10,
                       background: 'transparent', border: '1px solid var(--border-color)',
@@ -390,14 +404,105 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
                     Cancel
                   </button>
                   <button
-                    onClick={handleSubmit}
-                    disabled={submitting || !form.title.trim()}
+                    onClick={handleAnalyze}
+                    disabled={analyzing || !form.title.trim() || !form.component.trim()}
                     style={{
                       flex: 2, padding: '12px', borderRadius: 10,
                       background: 'var(--accent-color)', border: 'none',
                       color: 'var(--bg-main)', fontSize: 13, fontWeight: 700,
-                      cursor: submitting ? 'not-allowed' : 'pointer',
-                      opacity: (!form.title.trim() || submitting) ? 0.6 : 1,
+                      cursor: analyzing ? 'not-allowed' : 'pointer',
+                      opacity: (!form.title.trim() || !form.component.trim() || analyzing) ? 0.6 : 1,
+                      fontFamily: 'inherit', transition: 'all 0.2s',
+                    }}
+                  >
+                    {analyzing ? 'Analyzing Impact...' : 'Analyze Change Impact'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {step === 2 && analysisResult && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                      <Activity size={14} /> Risk Level
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
+                      <CRBadge label={analysisResult.risk_level} type="priority" />
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                      <DollarSign size={14} /> Estimated Cost
+                    </div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                      {analysisResult.estimated_cost}
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                      <Users size={14} /> Assign Engineer
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Enter engineer name"
+                      value={form.assignedTo}
+                      onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}
+                      style={{
+                        background: 'transparent', border: 'none', borderBottom: '1px solid var(--accent-color)', 
+                        color: 'var(--text-main)', fontSize: '1rem', fontWeight: 600, outline: 'none', padding: '4px 0'
+                      }}
+                    />
+                  </div>
+                  <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                      <Calendar size={14} /> Timeline
+                    </div>
+                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
+                      {analysisResult.timeline}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
+                    Impacted Components ({analysisResult.impacted_components.length})
+                  </div>
+                  <div style={{ background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12, maxHeight: 120, overflowY: 'auto' }}>
+                    {analysisResult.impacted_components.length > 0 ? (
+                      <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-main)', fontSize: 13 }}>
+                        {analysisResult.impacted_components.map((c, i) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{c}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>No downstream impacts detected.</div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                  <button
+                    onClick={() => setStep(1)}
+                    style={{
+                      flex: 1, padding: '12px', borderRadius: 10,
+                      background: 'transparent', border: '1px solid var(--border-color)',
+                      color: 'var(--text-muted)', fontSize: 13, fontWeight: 600,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Back to Form
+                  </button>
+                  <button
+                    onClick={handleFinalSubmit}
+                    disabled={submitting || !form.assignedTo.trim()}
+                    style={{
+                      flex: 2, padding: '12px', borderRadius: 10,
+                      background: 'var(--success)', border: 'none',
+                      color: 'var(--bg-main)', fontSize: 13, fontWeight: 700,
+                      cursor: (submitting || !form.assignedTo.trim()) ? 'not-allowed' : 'pointer',
+                      opacity: (submitting || !form.assignedTo.trim()) ? 0.6 : 1,
                       fontFamily: 'inherit', transition: 'all 0.2s',
                     }}
                   >

@@ -159,7 +159,7 @@ class Neo4jClient:
         query_simple = """
         MATCH (u:User {email: $user_email})
         OPTIONAL MATCH (u)-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(c:Component {name: $component_name})
-        WITH u, c
+        WITH DISTINCT u, c
         CREATE (cr:ChangeRequest {
             id: 'CR-' + toString(timestamp()),
             title: $cr_title,
@@ -186,7 +186,7 @@ class Neo4jClient:
     def get_change_requests(self, user_email: str):
         query = """
         MATCH (cr:ChangeRequest {user: $user_email})-[:AFFECTS]->(c:Component)
-        RETURN cr.id AS id, cr.title AS title, cr.status AS status, cr.priority AS priority, c.name AS component, cr.createdAt AS time
+        RETURN DISTINCT cr.id AS id, cr.title AS title, cr.status AS status, cr.priority AS priority, c.name AS component, cr.createdAt AS time
         ORDER BY cr.createdAt DESC
         """
         return self._execute_query(query, {"user_email": user_email})
