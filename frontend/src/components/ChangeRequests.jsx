@@ -435,6 +435,7 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
                         target_component: form.title
                       }}
                       graphData={userGraph}
+                      industry={analysisResult?.cad_graph?.industry || "Ship"}
                     />
                   </div>
                 </div>

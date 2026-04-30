@@ -239,6 +239,7 @@ function App() {
                 onIngestCAD={() => setShowIngestModal(true)}
                 graphData={graphData}
                 impactData={impactData}
+                onNodeClick={handleNodeClick}
               />
             </div>
           )}

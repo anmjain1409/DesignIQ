@@ -15,7 +15,7 @@ const statusIconColor = {
   Completed:   '#50c878',
 };
 
-const Dashboard = ({ stats: liveStats = {}, isLoading, changeRequests = [], onNavigate, onIngestCAD, graphData, impactData }) => {
+const Dashboard = ({ stats: liveStats = {}, isLoading, changeRequests = [], onNavigate, onIngestCAD, graphData, impactData, onNodeClick }) => {
   const safeLive = {
     total_assets: 0,
     total_systems: 0,
@@ -84,20 +84,34 @@ const Dashboard = ({ stats: liveStats = {}, isLoading, changeRequests = [], onNa
         ))}
       </div>
 
-      {/* Main Content Area: Analysis + Activity + 3D */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, marginBottom: 20 }}>
-        
+      {/* Hero 3D Section */}
+      <div style={{ 
+        width: '100%', height: 500, background: 'var(--bg-card)', 
+        border: '1px solid var(--border-color)', borderRadius: 16, 
+        marginBottom: 24, overflow: 'hidden' 
+      }}>
+        <CadFilePreview 
+          assetName={impactData ? `Impact Analysis: ${impactData.target_component}` : (safeLive.recent_activity[0]?.title || "Active Design")} 
+          graphData={graphData}
+          impactData={impactData}
+          industry={safeLive.recent_activity[0]?.industry || "Ship"}
+          onOpenDetails={(node) => onNodeClick && onNodeClick(node.name, node.group)}
+        />
+      </div>
+
+      {/* Main Content Area: Activity + Status */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24, marginBottom: 24 }}>
         {/* Left Column: CR Status & Recent Activity */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           {/* CR Status Bar Chart */}
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--border-color)',
-            borderRadius: 12, padding: 24,
+            borderRadius: 16, padding: 24,
           }}>
             <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
               Change Request Status
             </span>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', marginTop: 32, height: 120, gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', marginTop: 32, height: 120, gap: 12 }}>
               {Object.entries(crStatusCounts).map(([label, count]) => {
                 const pct = Math.max((count / maxCount) * 100, count === 0 ? 0 : 8);
                 const color = statusIconColor[label] || '#848d97';
@@ -106,12 +120,12 @@ const Dashboard = ({ stats: liveStats = {}, isLoading, changeRequests = [], onNa
                     <span style={{ fontSize: 11, fontWeight: 700, color }}>{count > 0 ? count : ''}</span>
                     <div style={{
                       width: '100%', background: `${color}22`,
-                      borderRadius: 4, height: 80, display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
+                      borderRadius: 6, height: 100, display: 'flex', alignItems: 'flex-end', overflow: 'hidden',
                     }}>
                       <div style={{
                         width: '100%', height: `${pct}%`,
                         background: count === 0 ? 'transparent' : color,
-                        borderRadius: 4, transition: 'height 0.5s ease',
+                        borderRadius: 6, transition: 'height 0.5s ease',
                         minHeight: count === 0 ? 0 : 4,
                       }} />
                     </div>
@@ -123,78 +137,69 @@ const Dashboard = ({ stats: liveStats = {}, isLoading, changeRequests = [], onNa
               })}
             </div>
           </div>
-
-          {/* Recent Activity */}
-          <div style={{
-            background: 'var(--bg-card)', border: '1px solid var(--border-color)',
-            borderRadius: 12, padding: 24, flex: 1,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                Recent Activity
-              </span>
-              <span
-                onClick={() => onNavigate && onNavigate('change-requests')}
-                style={{ fontSize: 12, color: 'var(--accent-color)', cursor: 'pointer', fontWeight: 600 }}
-              >
-                View all
-              </span>
-            </div>
-
-            {changeRequests.length === 0 && activity.length === 0 ? (
-              <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                No recent activity
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {[
-                  ...changeRequests.slice(0, 2).map(cr => ({
-                    id: cr.id,
-                    title: cr.title || 'Change Request',
-                    sub: `Status changed to ${(cr.status || 'pending').toLowerCase()}`,
-                    person: cr.assignedTo || cr.user || '',
-                    date: cr.time ? new Date(Number(cr.time)).toLocaleDateString('en-GB') : '—',
-                    color: statusIconColor[cr.status] || '#848d97',
-                  })),
-                  ...activity.slice(0, Math.max(0, 3 - changeRequests.length)).map(item => ({
-                    id: item.id,
-                    title: item.title || 'CAD Data Ingested',
-                    sub: item.action || 'Asset ingested',
-                    person: item.user || '',
-                    date: 'Recently',
-                    color: '#00f5ff',
-                  })),
-                ].slice(0, 4).map((item, i) => (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    padding: '10px 0',
-                    borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                  }}>
-                    <TriangleAlert size={16} style={{ color: item.color, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {item.title}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{item.person}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{item.date}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Right Column: 3D Visualization */}
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <CadFilePreview 
-            assetName={impactData ? `Impact Analysis: ${impactData.target_component}` : (safeLive.recent_activity[0]?.title || "Active Design")} 
-            graphData={graphData}
-            impactData={impactData}
-          />
+        {/* Right Column: Recent Activity */}
+        <div style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+          borderRadius: 16, padding: 24,
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+              Recent Activity
+            </span>
+            <span
+              onClick={() => onNavigate && onNavigate('change-requests')}
+              style={{ fontSize: 12, color: 'var(--accent-color)', cursor: 'pointer', fontWeight: 600 }}
+            >
+              View all
+            </span>
+          </div>
+
+          {changeRequests.length === 0 && activity.length === 0 ? (
+            <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              No recent activity
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {[
+                ...changeRequests.slice(0, 2).map(cr => ({
+                  id: cr.id,
+                  title: cr.title || 'Change Request',
+                  sub: `Status changed to ${(cr.status || 'pending').toLowerCase()}`,
+                  person: cr.assignedTo || cr.user || '',
+                  date: cr.time ? new Date(Number(cr.time)).toLocaleDateString('en-GB') : '—',
+                  color: statusIconColor[cr.status] || '#848d97',
+                })),
+                ...activity.slice(0, Math.max(0, 3 - changeRequests.length)).map(item => ({
+                  id: item.id,
+                  title: item.title || 'CAD Data Ingested',
+                  sub: item.action || 'Asset ingested',
+                  person: item.user || '',
+                  date: 'Recently',
+                  color: '#00f5ff',
+                })),
+              ].slice(0, 4).map((item, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 0',
+                  borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                }}>
+                  <TriangleAlert size={16} style={{ color: item.color, flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {item.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{item.sub}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{item.person}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{item.date}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
