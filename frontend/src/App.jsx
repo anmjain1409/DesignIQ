@@ -57,7 +57,12 @@ function App() {
       setImpactData(null);
       const systemsRes = await fetchSystems(industryObj.id);
       setSystems(systemsRes.systems);
-      const graphRes = await fetchGraph(industryObj.asset, type);
+      
+      // Find the actual asset name for this industry from the user's uploaded assets
+      const matchingAsset = assets.find(a => a.industry === industryObj.id);
+      const assetToFetch = matchingAsset ? matchingAsset.name : industryObj.asset;
+      
+      const graphRes = await fetchGraph(assetToFetch, type);
       setGraphData(graphRes);
     } catch (error) {
       console.error("Error loading data:", error);
@@ -232,6 +237,8 @@ function App() {
                 changeRequests={changeRequests}
                 onNavigate={setView}
                 onIngestCAD={() => setShowIngestModal(true)}
+                graphData={graphData}
+                impactData={impactData}
               />
             </div>
           )}

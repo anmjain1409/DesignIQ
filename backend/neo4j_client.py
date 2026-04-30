@@ -105,34 +105,48 @@ class Neo4jClient:
 
     def ingest_cad_data(self, data: dict, industry_prefix: str, user_email: str = None):
         # Ingestion logic with Asset/System/Component hierarchy from flowchart
+        # We ensure isolation by merging nodes relative to their parents and the user
         query = f"""
         MATCH (u:User {{email: $user_email}})
-        MERGE (a:Asset {{name: $product, industry: $industry}})
-        ON CREATE SET a.createdAt = timestamp()
-        MERGE (u)-[:OWNS]->(a)
         
-        MERGE (s:System {{name: $system}})
+        // Asset is unique to user
+        MERGE (u)-[:OWNS]->(a:Asset {{name: $product, industry: $industry}})
+        ON CREATE SET a.createdAt = timestamp(), a.owner = $user_email
+        
+        // System is unique to asset
+        MERGE (a)-[:HAS_SYSTEM]->(s:System {{name: $system}})
         ON CREATE SET s.generic = $generic_system
-        MERGE (a)-[:HAS_SYSTEM]->(s)
         
-        MERGE (comp:Component {{name: $part, type: $type}})
+        // Component is unique to system
+        MERGE (s)-[:HAS_COMPONENT]->(comp:Component {{name: $part, type: $type}})
         ON CREATE SET 
             comp.assembly = $assembly,
             comp.supplier = $supplier,
             comp.version = $version
             
-        MERGE (s)-[:HAS_COMPONENT]->(comp)
-        
-        // Add Properties from flowchart
+        // Add Properties unique to component
         WITH comp, $raw_metadata AS raw
         UNWIND keys(raw) AS prop_name
-        MERGE (p:Property {{name: prop_name, value: toString(raw[prop_name])}})
-        MERGE (comp)-[:HAS_PROPERTY]->(p)
+        MERGE (comp)-[:HAS_PROPERTY]->(p:Property {{name: prop_name, value: toString(raw[prop_name])}})
         
-        // Mapping Layer: Link 2D and 3D counterparts if they share same name
+        // Dynamic Connection Parser: Link components if they appear in a connection string
+        WITH comp, $raw_metadata AS raw
+        WHERE raw.connections IS NOT NULL
+        WITH comp, split(replace(replace(replace(raw.connections, "[", ""), "]", ""), "'", ""), ",") AS conn_list
+        UNWIND conn_list AS conn
+        WITH comp, trim(split(conn, "(")[0]) AS link_str
+        WHERE link_str CONTAINS "-"
+        WITH comp, split(link_str, "-")[0] AS source_name, split(link_str, "-")[1] AS target_name
+        MATCH (u:User {{email: $user_email}})-[:OWNS]->(asset:Asset)-[:HAS_SYSTEM|HAS_COMPONENT*1..2]->(other:Component)
+        WHERE (other.name = source_name OR other.name = target_name) AND id(other) <> id(comp)
+        MERGE (comp)-[:CONNECTED_TO]->(other)
+        
+        // Mapping Layer: Link 2D and 3D counterparts within the SAME asset/user context
         WITH comp
-        MATCH (other:Component {{name: comp.name}})
-        WHERE id(other) <> id(comp) AND other.type <> comp.type
+        MATCH (u:User {{email: $user_email}})-[:OWNS]->(asset:Asset)-[:HAS_SYSTEM|HAS_COMPONENT*1..2]->(other:Component)
+        WHERE id(other) <> id(comp) 
+          AND other.name = comp.name
+          AND other.type <> comp.type
         MERGE (comp)-[:REPRESENTS]-(other)
         
         RETURN comp
@@ -185,11 +199,48 @@ class Neo4jClient:
 
     def get_change_requests(self, user_email: str):
         query = """
-        MATCH (cr:ChangeRequest {user: $user_email})-[:AFFECTS]->(c:Component)
-        RETURN DISTINCT cr.id AS id, cr.title AS title, cr.status AS status, cr.priority AS priority, c.name AS component, cr.createdAt AS time
+        MATCH (cr:ChangeRequest {user: $user_email})
+        OPTIONAL MATCH (cr)-[:AFFECTS]->(c:Component)
+        RETURN DISTINCT cr.id AS id, cr.title AS title, cr.status AS status, cr.priority AS priority,
+               coalesce(c.name, cr.component) AS component, cr.createdAt AS time
         ORDER BY cr.createdAt DESC
         """
         return self._execute_query(query, {"user_email": user_email})
+
+    def get_full_user_graph(self, user_email: str):
+        """Return the complete BOM graph for all assets owned by a user."""
+        query = """
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)
+        OPTIONAL MATCH (a)-[r1:HAS_SYSTEM]->(s:System)
+        OPTIONAL MATCH (s)-[r2:HAS_COMPONENT]->(c:Component)
+        OPTIONAL MATCH (c)-[r3:CONNECTED_TO]->(c2:Component)
+        RETURN a, r1, s, r2, c, r3, c2
+        """
+        records = self._execute_query(query, {"user_email": user_email})
+        nodes_dict = {}
+        links = []
+        
+        def add_node(obj, group):
+            if not obj: return None
+            node_id = f"{group}_{obj.get('name','?')}"
+            if node_id not in nodes_dict:
+                nodes_dict[node_id] = {"id": node_id, "name": obj.get("name", "?"), "group": group}
+            return node_id
+
+        for r in records:
+            a_id = add_node(r.get("a"), "Asset")
+            s_id = add_node(r.get("s"), "System")
+            c_id = add_node(r.get("c"), "Component")
+            c2_id = add_node(r.get("c2"), "Component")
+            
+            if a_id and s_id and {"source": a_id, "target": s_id} not in links:
+                links.append({"source": a_id, "target": s_id})
+            if s_id and c_id and {"source": s_id, "target": c_id} not in links:
+                links.append({"source": s_id, "target": c_id})
+            if c_id and c2_id and {"source": c_id, "target": c2_id} not in links:
+                links.append({"source": c_id, "target": c2_id})
+                
+        return {"nodes": list(nodes_dict.values()), "links": links}
 
     def get_assets(self, user_email: str):
         query = """

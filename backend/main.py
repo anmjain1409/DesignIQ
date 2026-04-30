@@ -136,6 +136,10 @@ def create_cr(request: ImpactRequest, user_email: str = Depends(get_current_user
 def get_crs(user_email: str = Depends(get_current_user)):
     return neo4j_client.get_change_requests(user_email)
 
+@app.get("/user-graph")
+def get_user_graph(user_email: str = Depends(get_current_user)):
+    return neo4j_client.get_full_user_graph(user_email)
+
 @app.post("/analyze-change")
 def analyze_change(request: AnalyzeChangeRequest, user_email: str = Depends(get_current_user)):
     return analysis_service.analyze_change(request.component, request.discipline, user_email)

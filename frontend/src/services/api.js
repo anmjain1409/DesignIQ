@@ -106,3 +106,8 @@ export const submitChangeRequest = async (data) => {
   const response = await axios.post(`${API_BASE_URL}/submit-change`, data);
   return response.data;
 };
+
+export const fetchUserGraph = async () => {
+  const response = await axios.get(`${API_BASE_URL}/user-graph`);
+  return response.data;
+};

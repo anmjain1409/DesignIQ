@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, CheckCircle2, Loader2, FileText, Box, GitMerge, ArrowRight } from 'lucide-react';
 import { ingestCadData } from '../services/api';
+import CadFilePreview from './CadFilePreview';
 
 const PIPELINE_STEPS = [
   { id: 'upload', label: 'File Upload', desc: 'STEP/DWG/DXF validation' },
@@ -141,75 +142,85 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
             <CheckCircle2 size={48} className="text-green mb-4" />
             <h3>{reportMode.toUpperCase()} Report Generated</h3>
             
-            <div className="report-container">
-              <div className="report-section">
-                <h4>System Details</h4>
-                <div className="report-grid">
-                  <div className="grid-item">
-                    <label>Industry</label>
-                    <span>{report.industry}</span>
+            <div className="report-container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div className="report-details-side">
+                <div className="report-section">
+                  <h4>System Details</h4>
+                  <div className="report-grid">
+                    <div className="grid-item">
+                      <label>Industry</label>
+                      <span>{report.industry}</span>
+                    </div>
+                    <div className="grid-item">
+                      <label>Product</label>
+                      <span>{report.extracted_data?.product}</span>
+                    </div>
+                    <div className="grid-item">
+                      <label>Generic Mapping</label>
+                      <span>{report.extracted_data?.generic_system}</span>
+                    </div>
+                    <div className="grid-item">
+                      <label>Risk Level</label>
+                      <span className={`risk-${report.impact_analysis.risk_level}`}>{report.impact_analysis.risk_level}</span>
+                    </div>
                   </div>
-                  <div className="grid-item">
-                    <label>Product</label>
-                    <span>{report.extracted_data?.product}</span>
-                  </div>
-                  <div className="grid-item">
-                    <label>Generic Mapping</label>
-                    <span>{report.extracted_data?.generic_system}</span>
-                  </div>
-                  <div className="grid-item">
-                    <label>Risk Level</label>
-                    <span className={`risk-${report.impact_analysis.risk_level}`}>{report.impact_analysis.risk_level}</span>
+                </div>
+
+                <div className="report-section mt-4">
+                  <h4>Extracted Metadata ({report.extracted_data?.type} Data)</h4>
+                  <div className="metadata-table">
+                    {/* Common Fields */}
+                    <div className="metadata-row">
+                      <span className="meta-key">Assembly</span>
+                      <span className="meta-val">{report.extracted_data?.assembly}</span>
+                    </div>
+                    <div className="metadata-row">
+                      <span className="meta-key">Component</span>
+                      <span className="meta-val">{report.extracted_data?.part}</span>
+                    </div>
+
+                    {/* Filtered Dynamic Fields */}
+                    {Object.entries(report.extracted_data?.raw_metadata || {})
+                      .filter(([key]) => {
+                        if (reportMode === 'Both') return true;
+                        if (reportMode === '2D') return ['geometry', 'dimensions', 'annotations'].includes(key.toLowerCase());
+                        if (reportMode === '3D') return ['components', 'assembly_structure', 'connections'].includes(key.toLowerCase());
+                        return true;
+                      })
+                      .map(([key, val]) => (
+                        <div key={key} className="metadata-row">
+                          <span className="meta-key">{key.replace(/_/g, ' ')}</span>
+                          <span className="meta-val">{val}</span>
+                        </div>
+                      ))}
                   </div>
                 </div>
               </div>
 
-              <div className="report-section mt-4">
-                <h4>Extracted Metadata ({report.extracted_data?.type} Data)</h4>
-                <div className="metadata-table">
-                  {/* Common Fields */}
-                  <div className="metadata-row">
-                    <span className="meta-key">Assembly</span>
-                    <span className="meta-val">{report.extracted_data?.assembly}</span>
-                  </div>
-                  <div className="metadata-row">
-                    <span className="meta-key">Component</span>
-                    <span className="meta-val">{report.extracted_data?.part}</span>
-                  </div>
-
-                  {/* Filtered Dynamic Fields */}
-                  {Object.entries(report.extracted_data?.raw_metadata || {})
-                    .filter(([key]) => {
-                      if (reportMode === 'Both') return true;
-                      if (reportMode === '2D') return ['geometry', 'dimensions', 'annotations'].includes(key.toLowerCase());
-                      if (reportMode === '3D') return ['components', 'assembly_structure', 'connections'].includes(key.toLowerCase());
-                      return true;
-                    })
-                    .map(([key, val]) => (
-                      <div key={key} className="metadata-row">
-                        <span className="meta-key">{key.replace(/_/g, ' ')}</span>
-                        <span className="meta-val">{val}</span>
-                      </div>
-                    ))}
-
-                  {/* Show mismatch warning if applicable */}
-                  {reportMode !== 'combined' && reportMode.toUpperCase() !== report.extracted_data?.type && (
-                    <div className="metadata-row warning-row">
-                      <span className="meta-key">Notice</span>
-                      <span className="meta-val">No specific {reportMode.toUpperCase()} data in this {report.extracted_data?.type} file.</span>
-                    </div>
-                  )}
-
-                  {/* Other Metadata */}
-                  <div className="metadata-row">
-                    <span className="meta-key">Supplier</span>
-                    <span className="meta-val">{report.extracted_data?.supplier}</span>
-                  </div>
-                  <div className="metadata-row">
-                    <span className="meta-key">Version</span>
-                    <span className="meta-val">{report.extracted_data?.version}</span>
-                  </div>
-                </div>
+              <div className="report-visual-side" style={{ height: '400px' }}>
+                <CadFilePreview 
+                  assetName={report.extracted_data?.product} 
+                  impactData={report.impact_analysis}
+                  graphData={{
+                    nodes: [
+                      { id: 'a1', name: report.extracted_data?.product, group: 'Asset' },
+                      { id: 's1', name: report.extracted_data?.system || 'Main System', group: 'System' },
+                      ...(report.extracted_data?.raw_metadata?.components 
+                        ? JSON.parse(report.extracted_data.raw_metadata.components.replace(/'/g, '"')).map((c, i) => ({
+                            id: `c${i}`, name: c, group: 'Component'
+                          }))
+                        : [])
+                    ],
+                    links: [
+                      { source: 'a1', target: 's1' },
+                      ...(report.extracted_data?.raw_metadata?.components 
+                        ? JSON.parse(report.extracted_data.raw_metadata.components.replace(/'/g, '"')).map((c, i) => ({
+                            source: 's1', target: `c${i}`
+                          }))
+                        : [])
+                    ]
+                  }}
+                />
               </div>
             </div>
 

@@ -3,7 +3,9 @@ import {
   Plus, ExternalLink, X, CheckCircle, Clock, AlertTriangle,
   GitBranch, Filter, ChevronDown, Activity, Settings, Calendar, DollarSign, Users
 } from 'lucide-react';
-import { analyzeChangeRequest, submitChangeRequest } from '../services/api';
+import { analyzeChangeRequest, submitChangeRequest, fetchUserGraph } from '../services/api';
+import { FullCadGraphViz } from './AnalysisVisuals';
+import CadFilePreview from './CadFilePreview';
 
 const TABS = ['All', 'Draft', 'Pending', 'Approved', 'Rejected', 'In Progress', 'Completed'];
 const DISCIPLINES = ['Propulsion', 'Structural', 'Electrical', 'Navigation', 'HVAC', 'Hydraulics'];
@@ -11,9 +13,9 @@ const PRIORITIES = ['Critical', 'High', 'Medium', 'Low'];
 
 const priorityColors = {
   Critical: { bg: 'rgba(255,77,77,0.12)', color: '#ff4d4d' },
-  High:     { bg: 'rgba(255,140,0,0.12)',  color: '#ff8c00' },
-  Medium:   { bg: 'rgba(255,204,0,0.12)',  color: '#ffcc00' },
-  Low:      { bg: 'rgba(0,255,204,0.12)',  color: '#00ffcc' },
+  High:     { bg: 'rgba(255,77,77,0.12)',  color: '#ff4d4d' }, // Red
+  Medium:   { bg: 'rgba(0,255,204,0.12)',  color: '#00ffcc' }, // Green
+  Low:      { bg: 'rgba(255,204,0,0.12)',  color: '#ffcc00' }, // Yellow
 };
 
 const statusColors = {
@@ -134,8 +136,9 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [userGraph, setUserGraph] = useState(null);
   const [form, setForm] = useState({
-    title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: '', assignedTo: ''
+    title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: 'N/A', assignedTo: ''
   });
 
   const filtered = changeRequests.filter(cr =>
@@ -143,12 +146,14 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
   );
 
   const handleAnalyze = async () => {
-    if (!form.title.trim() || !form.component.trim()) return;
+    if (!form.title.trim()) return;
     setAnalyzing(true);
     try {
-      const payload = { ...form, description: form.desc };
+      const payload = { ...form, description: form.desc, component: form.title };
       const result = await analyzeChangeRequest(payload);
       setAnalysisResult(result);
+      // Also fetch the full BOM graph for visualization
+      fetchUserGraph().then(setUserGraph).catch(() => {});
       setStep(2);
     } catch (err) {
       console.error('Analysis failed:', err);
@@ -174,8 +179,9 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
         setSuccessMsg('');
         setOpen(false);
         setStep(1);
-        setForm({ title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: '', assignedTo: '' });
+        setForm({ title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: 'N/A', assignedTo: '' });
         setAnalysisResult(null);
+        setUserGraph(null);
         onRefresh && onRefresh();
       }, 1500);
     } catch (err) {
@@ -189,7 +195,8 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
     setOpen(false);
     setStep(1);
     setAnalysisResult(null);
-    setForm({ title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: '', assignedTo: '' });
+    setUserGraph(null);
+    setForm({ title: '', desc: '', discipline: 'Propulsion', priority: 'High', component: 'N/A', assignedTo: '' });
   };
 
   return (
@@ -323,9 +330,10 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
         }}>
           <div style={{
             background: 'var(--bg-card)', border: '1px solid var(--border-color)',
-            borderRadius: 16, width: '100%', maxWidth: 560,
+            borderRadius: 16, width: '100%', maxWidth: step === 2 ? 780 : 560,
             maxHeight: '90vh', overflowY: 'auto', padding: 36,
             boxShadow: '0 24px 48px rgba(0,0,0,0.5)', position: 'relative',
+            transition: 'max-width 0.3s ease',
           }}>
             <button
               onClick={resetModal}
@@ -366,14 +374,6 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
                   />
                 </FormField>
 
-                <FormField label="Affected Component">
-                  <StyledInput
-                    placeholder="e.g., Turbine Housing"
-                    value={form.component}
-                    onChange={e => setForm(f => ({ ...f, component: e.target.value }))}
-                  />
-                </FormField>
-
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <FormField label="Discipline">
                     <StyledSelect
@@ -405,13 +405,13 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
                   </button>
                   <button
                     onClick={handleAnalyze}
-                    disabled={analyzing || !form.title.trim() || !form.component.trim()}
+                    disabled={analyzing || !form.title.trim()}
                     style={{
                       flex: 2, padding: '12px', borderRadius: 10,
                       background: 'var(--accent-color)', border: 'none',
                       color: 'var(--bg-main)', fontSize: 13, fontWeight: 700,
                       cursor: analyzing ? 'not-allowed' : 'pointer',
-                      opacity: (!form.title.trim() || !form.component.trim() || analyzing) ? 0.6 : 1,
+                      opacity: (!form.title.trim() || analyzing) ? 0.6 : 1,
                       fontFamily: 'inherit', transition: 'all 0.2s',
                     }}
                   >
@@ -423,66 +423,63 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
 
             {step === 2 && analysisResult && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
-                      <Activity size={14} /> Risk Level
-                    </div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-                      <CRBadge label={analysisResult.risk_level} type="priority" />
-                    </div>
+
+                {/* Visualizations row */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 14 }}>
+                  <FullCadGraphViz graphData={userGraph} />
+                  <div style={{ height: '350px' }}>
+                    <CadFilePreview 
+                      assetName={form.title} 
+                      impactData={{
+                        ...analysisResult,
+                        target_component: form.title
+                      }}
+                      graphData={userGraph}
+                    />
                   </div>
-                  <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
-                      <DollarSign size={14} /> Estimated Cost
+                </div>
+
+                {/* Metrics row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+                  <div style={{ background: 'var(--bg-main)', padding: 14, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', marginBottom: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+                      <Activity size={13} /> Risk
                     </div>
-                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-main)' }}>
-                      {analysisResult.estimated_cost}
-                    </div>
+                    <CRBadge label={analysisResult.risk_level} type="priority" />
                   </div>
-                  <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
-                      <Users size={14} /> Assign Engineer
+                  <div style={{ background: 'var(--bg-main)', padding: 14, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', marginBottom: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+                      <DollarSign size={13} /> Cost
                     </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-main)' }}>{analysisResult.estimated_cost}</div>
+                  </div>
+                  <div style={{ background: 'var(--bg-main)', padding: 14, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', marginBottom: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase' }}>
+                      <Calendar size={13} /> Timeline
+                    </div>
+                    <div style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-main)' }}>{analysisResult.timeline}</div>
+                  </div>
+                </div>
+
+                {/* Assign engineer */}
+                <div style={{ background: 'var(--bg-main)', padding: 14, borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Users size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>Assign Engineer</div>
                     <input
                       type="text"
                       placeholder="Enter engineer name"
                       value={form.assignedTo}
                       onChange={e => setForm(f => ({ ...f, assignedTo: e.target.value }))}
                       style={{
-                        background: 'transparent', border: 'none', borderBottom: '1px solid var(--accent-color)', 
-                        color: 'var(--text-main)', fontSize: '1rem', fontWeight: 600, outline: 'none', padding: '4px 0'
+                        background: 'transparent', border: 'none', borderBottom: '1px solid var(--accent-color)',
+                        color: 'var(--text-main)', fontSize: '1rem', fontWeight: 600, outline: 'none', padding: '4px 0', width: '100%'
                       }}
                     />
                   </div>
-                  <div style={{ background: 'var(--bg-main)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', marginBottom: 8, fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
-                      <Calendar size={14} /> Timeline
-                    </div>
-                    <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                      {analysisResult.timeline}
-                    </div>
-                  </div>
                 </div>
 
-                <div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8 }}>
-                    Impacted Components ({analysisResult.impacted_components.length})
-                  </div>
-                  <div style={{ background: 'var(--bg-main)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12, maxHeight: 120, overflowY: 'auto' }}>
-                    {analysisResult.impacted_components.length > 0 ? (
-                      <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-main)', fontSize: 13 }}>
-                        {analysisResult.impacted_components.map((c, i) => (
-                          <li key={i} style={{ marginBottom: 4 }}>{c}</li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>No downstream impacts detected.</div>
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                <div style={{ display: 'flex', gap: 12 }}>
                   <button
                     onClick={() => setStep(1)}
                     style={{
@@ -492,7 +489,7 @@ export default function ChangeRequests({ changeRequests = [], onRefresh }) {
                       cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
-                    Back to Form
+                    Back
                   </button>
                   <button
                     onClick={handleFinalSubmit}
