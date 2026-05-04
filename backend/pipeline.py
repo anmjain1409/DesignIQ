@@ -74,30 +74,30 @@ class CADPipeline:
         base_name = filename.split('.')[0].replace('_', ' ').replace('-', ' ').title()
         
         # Industry mapping based on keywords
+        import random
+        random.seed(filename) # Use filename as seed for deterministic but unique variety per file
+        
         if any(kw in filename for kw in ["car", "auto", "vehicle"]):
             product, ind = f"{base_name} Model", "Automotive"
             assembly_tree = {
-                "name": "Vehicle Powertrain",
+                "name": f"{base_name} Powertrain",
                 "type": "Assembly",
-                "properties": {"Material": "Cast Aluminum", "Weight": "150kg", "Service_Interval": "12 months"},
+                "properties": {"Material": "Cast Aluminum", "Weight": f"{random.randint(100, 300)}kg"},
                 "children": [
                     {
-                        "name": "Engine System",
+                        "name": f"{base_name} Engine",
                         "type": "SubAssembly",
-                        "properties": {"Displacement": "4.0L", "HP": "450", "Fuel_Type": "Octane 95"},
+                        "properties": {"Displacement": f"{random.uniform(2.0, 5.0):.1f}L", "HP": random.randint(200, 600)},
                         "children": [
-                            {"name": "V8 Engine Block", "properties": {"Bore": "93mm", "Stroke": "73.5mm", "Alloy": "AlSi7Mg"}},
-                            {"name": "Cylinder Head", "properties": {"Valves": "32", "Inlet": "Titanium"}},
-                            {"name": "Crankshaft", "properties": {"Forged": "Yes", "Material": "4340 Steel"}}
+                            {"name": f"Piston Group {random.randint(1,9)}", "properties": {"Bore": "93mm", "Stroke": "73.5mm"}},
+                            {"name": "Cylinder Head", "properties": {"Valves": random.choice([16, 24, 32])}}
                         ]
                     },
                     {
-                        "name": "Transmission System",
+                        "name": "Transmission Unit",
                         "type": "SubAssembly",
-                        "properties": {"Gears": "7", "Type": "Dual Clutch"},
                         "children": [
-                            {"name": "Gearbox Case", "properties": {"Pressure": "20bar", "Seal": "EPDM"}},
-                            {"name": "Clutch Assembly", "properties": {"Torque": "600Nm", "Plates": "8"}}
+                            {"name": "Gearbox Case", "properties": {"Pressure": f"{random.randint(15, 25)}bar"}}
                         ]
                     }
                 ]
@@ -105,26 +105,50 @@ class CADPipeline:
         elif any(kw in filename for kw in ["jet", "aero", "plane", "wing"]):
             product, ind = f"{base_name} Airframe", "Aerospace"
             assembly_tree = {
-                "name": "Main Airframe Assembly",
+                "name": f"{base_name} Assembly",
                 "type": "Assembly",
-                "properties": {"Safety_Factor": "1.5", "Max_Altitude": "40,000ft", "Material": "Carbon Composite"},
+                "properties": {"Safety_Factor": "1.5", "Material": "Carbon Composite"},
                 "children": [
                     {
                         "name": "Propulsion Module",
                         "type": "SubAssembly",
-                        "properties": {"Thrust": "35,000lbf", "Bypass_Ratio": "10:1"},
+                        "properties": {"Thrust": f"{random.randint(20, 50)}k lbf"},
                         "children": [
-                            {"name": "Turbofan Intake", "properties": {"Diameter": "2.8m", "Blades": "22"}},
-                            {"name": "Combustion Chamber", "properties": {"Temp": "1800C", "Material": "Inconel"}}
+                            {"name": "Turbofan Intake", "properties": {"Diameter": f"{random.uniform(1.5, 3.0):.1f}m"}},
+                            {"name": "Combustion Chamber", "properties": {"Temp": "1800C"}}
                         ]
                     },
                     {
-                        "name": "Wing Assembly",
+                        "name": "Avionics Core",
                         "type": "SubAssembly",
-                        "properties": {"Span": "35m", "Fuel_Capacity": "12,000L"},
                         "children": [
-                            {"name": "Wing Spar", "properties": {"Load": "100kN", "Material": "7075-T6"}},
-                            {"name": "Aileron", "properties": {"Degrees": "25", "Actuator": "Hydraulic"}}
+                            {"name": "Flight Computer", "properties": {"CPU": "Radiation Hardened"}},
+                            {"name": "Sensor Array", "properties": {"Accuracy": "0.01deg"}}
+                        ]
+                    }
+                ]
+            }
+        elif any(kw in filename for kw in ["rig", "oil", "pipe", "pump"]):
+            product, ind = f"{base_name} Rig", "Oil & Gas"
+            assembly_tree = {
+                "name": f"{base_name} Platform",
+                "type": "Assembly",
+                "properties": {"Max_Depth": f"{random.randint(1000, 5000)}m", "Material": "Corrosion Resistant Steel"},
+                "children": [
+                    {
+                        "name": "Extraction Unit",
+                        "type": "SubAssembly",
+                        "children": [
+                            {"name": "Drill Bit", "properties": {"Teeth": "PDC", "Size": "12.25in"}},
+                            {"name": "Mud Pump", "properties": {"Flow": "500GPM"}}
+                        ]
+                    },
+                    {
+                        "name": "Safety Systems",
+                        "type": "SubAssembly",
+                        "children": [
+                            {"name": "BOP Stack", "properties": {"Pressure": "15,000psi"}},
+                            {"name": "Flare System", "properties": {"Height": "50m"}}
                         ]
                     }
                 ]
@@ -132,26 +156,25 @@ class CADPipeline:
         else:
             product, ind = f"{base_name} Module", "Ship"
             assembly_tree = {
-                "name": "Marine Propulsion Unit",
+                "name": f"{base_name} Unit",
                 "type": "Assembly",
-                "properties": {"Power": "12,000kW", "Class": "Lloyds Register", "Material": "Marine Steel"},
+                "properties": {"Class": "DNV-GL", "Material": "Marine Steel Grade A"},
                 "children": [
                     {
-                        "name": "Hull Structure",
+                        "name": "Hull Section",
                         "type": "SubAssembly",
-                        "properties": {"Length": "120m", "Beam": "22m", "Draft": "8.5m"},
+                        "properties": {"LOA": f"{random.randint(50, 300)}m"},
                         "children": [
-                            {"name": "Hull Plate", "properties": {"Thickness": "25mm", "Grade": "EH36", "Coating": "Epoxy"}},
-                            {"name": "Keel Section", "properties": {"Weight": "45t", "Stress": "120MPa"}}
+                            {"name": f"Plate {random.randint(100, 999)}", "properties": {"Thickness": f"{random.randint(15, 40)}mm"}},
+                            {"name": "Bulkhead", "properties": {"Fire_Rating": "A60"}}
                         ]
                     },
                     {
-                        "name": "Drive Train",
+                        "name": "Propulsion",
                         "type": "SubAssembly",
-                        "properties": {"RPM": "105", "Shaft_Dia": "650mm"},
                         "children": [
-                            {"name": "Propeller Shaft", "properties": {"Length": "12m", "Forged": "Yes"}},
-                            {"name": "Rudder Blade", "properties": {"Area": "14.5m2", "Angle": "35deg"}}
+                            {"name": "Main Engine", "properties": {"Cylinders": random.choice([6, 8, 12])}},
+                            {"name": "Shaft Line", "properties": {"Length": "15m"}}
                         ]
                     }
                 ]

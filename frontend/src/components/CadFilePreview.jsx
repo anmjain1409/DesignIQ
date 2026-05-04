@@ -120,22 +120,54 @@ function ShipHull({ xRay, isExploded }) {
   );
 }
 
-function CarChassis({ xRay, isExploded }) {
+function JetModel({ xRay, isExploded }) {
   const opacity = xRay ? 0.2 : 1;
   const transparent = xRay;
-  const offset = isExploded ? 1.5 : 0;
+  const offset = isExploded ? 2 : 0;
   return (
-    <group position={[0, -0.5, 0]}>
-      <mesh receiveShadow castShadow position={[0, -offset, 0]}>
-        <boxGeometry args={[8, 0.5, 4]} />
-        <meshPhysicalMaterial color="#2d3a4f" metalness={0.8} transparent={transparent} opacity={opacity} />
+    <group position={[0, 0, 0]} rotation={[0, -Math.PI/2, 0]}>
+      {/* Fuselage */}
+      <mesh castShadow>
+        <cylinderGeometry args={[0.8, 0.4, 10, 16]} />
+        <meshPhysicalMaterial color="#cbd5e1" metalness={0.9} transparent={transparent} opacity={opacity} />
       </mesh>
-      {[[-3, 0, 2], [3, 0, 2], [-3, 0, -2], [3, 0, -2]].map((pos, i) => (
-        <mesh key={i} position={[pos[0] * (1 + offset/4), pos[1], pos[2] * (1 + offset/2)]} rotation={[Math.PI/2, 0, 0]}>
-          <cylinderGeometry args={[0.8, 0.8, 0.5, 16]} />
-          <meshPhysicalMaterial color="#000000" roughness={0.8} transparent={transparent} opacity={opacity} />
+      {/* Wings */}
+      <mesh position={[0, 0, 0]} rotation={[Math.PI/2, 0, 0]}>
+        <boxGeometry args={[1, 10 + offset, 0.1]} />
+        <meshPhysicalMaterial color="#94a3b8" metalness={1} transparent={transparent} opacity={opacity} />
+      </mesh>
+      {/* Tail */}
+      <mesh position={[0, 4.5, 0.8 + offset/2]} rotation={[0.5, 0, 0]}>
+        <boxGeometry args={[0.1, 1.5, 2]} />
+        <meshPhysicalMaterial color="#334155" />
+      </mesh>
+    </group>
+  );
+}
+
+function RigModel({ xRay, isExploded }) {
+  const opacity = xRay ? 0.2 : 1;
+  const transparent = xRay;
+  const offset = isExploded ? 3 : 0;
+  return (
+    <group position={[0, -2, 0]}>
+      {/* Platform */}
+      <mesh castShadow position={[0, 4 + offset, 0]}>
+        <boxGeometry args={[6, 0.5, 6]} />
+        <meshPhysicalMaterial color="#475569" metalness={0.5} transparent={transparent} opacity={opacity} />
+      </mesh>
+      {/* Legs */}
+      {[[-2, 2, 2], [2, 2, 2], [-2, 2, -2], [2, 2, -2]].map((pos, i) => (
+        <mesh key={i} position={pos}>
+          <cylinderGeometry args={[0.2, 0.2, 8, 8]} />
+          <meshPhysicalMaterial color="#1e293b" />
         </mesh>
       ))}
+      {/* Derrick */}
+      <mesh position={[0, 6 + offset * 1.5, 0]}>
+        <cylinderGeometry args={[0.1, 1, 4, 4]} />
+        <meshPhysicalMaterial color="#f59e0b" wireframe />
+      </mesh>
     </group>
   );
 }
@@ -217,6 +249,26 @@ function ComponentMesh({ node, position, isAffected, isTarget, riskLevel, onClic
   );
 }
 
+function CarChassis({ xRay, isExploded }) {
+  const opacity = xRay ? 0.2 : 1;
+  const transparent = xRay;
+  const offset = isExploded ? 1.5 : 0;
+  return (
+    <group position={[0, -0.5, 0]}>
+      <mesh receiveShadow castShadow position={[0, -offset, 0]}>
+        <boxGeometry args={[8, 0.5, 4]} />
+        <meshPhysicalMaterial color="#2d3a4f" metalness={0.8} transparent={transparent} opacity={opacity} />
+      </mesh>
+      {[[-3, 0, 2], [3, 0, 2], [-3, 0, -2], [3, 0, -2]].map((pos, i) => (
+        <mesh key={i} position={[pos[0] * (1 + offset/4), pos[1], pos[2] * (1 + offset/2)]} rotation={[Math.PI/2, 0, 0]}>
+          <cylinderGeometry args={[0.8, 0.8, 0.5, 16]} />
+          <meshPhysicalMaterial color="#000000" roughness={0.8} transparent={transparent} opacity={opacity} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
 const CadFilePreview = ({ assetName = "Design Intelligence", impactData = null, graphData = null, industry = "Ship", onOpenDetails }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isExploded, setIsExploded] = useState(false);
@@ -224,6 +276,15 @@ const CadFilePreview = ({ assetName = "Design Intelligence", impactData = null, 
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeData, setSelectedNodeData] = useState(null);
   const [isLoadingProps, setIsLoadingProps] = useState(false);
+
+  const renderModel = () => {
+    const ind = industry?.toLowerCase() || "";
+    if (ind.includes('ship')) return <ShipHull xRay={xRay} isExploded={isExploded} />;
+    if (ind.includes('auto') || ind.includes('car')) return <CarChassis xRay={xRay} isExploded={isExploded} />;
+    if (ind.includes('aero') || ind.includes('jet')) return <JetModel xRay={xRay} isExploded={isExploded} />;
+    if (ind.includes('oil') || ind.includes('rig')) return <RigModel xRay={xRay} isExploded={isExploded} />;
+    return <ShipHull xRay={xRay} isExploded={isExploded} />;
+  };
 
   const { nodes, posMap } = useMemo(() => {
     const rawNodes = Array.isArray(graphData?.nodes) ? graphData.nodes : [];
@@ -359,7 +420,7 @@ const CadFilePreview = ({ assetName = "Design Intelligence", impactData = null, 
           <Suspense fallback={null}>
             <Stage intensity={0.5} environment="city" shadows={false}>
               <group onClick={() => setSelectedNode(null)}>
-                {(industry === 'Ship' || industry === 'Shipbuilding') ? <ShipHull xRay={xRay} isExploded={isExploded} /> : <CarChassis xRay={xRay} isExploded={isExploded} />}
+                {renderModel()}
                 {nodes.map((node) => (
                   <ComponentMesh 
                     key={node.id || node.name}
