@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Upload, CheckCircle2, Loader2, FileText, Box, GitMerge, ArrowRight, ShieldCheck, Database, Layers, Settings, ChevronRight } from 'lucide-react';
+import { X, Upload, CheckCircle2, Loader2, FileText, Box, GitMerge, ArrowRight, ShieldCheck, Database, Layers, Settings, ChevronRight, Zap, Clock } from 'lucide-react';
 import { ingestCadData } from '../services/api';
 import CadFilePreview from './CadFilePreview';
 
@@ -142,54 +142,111 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
           </aside>
 
           {/* Main Visual Workspace */}
-          <main style={{ position: 'relative', background: '#000' }}>
-            <CadFilePreview 
-              assetName={report.extracted_data?.product} 
-              impactData={report.impact_analysis}
-              industry={report.extracted_data?.industry}
-              graphData={(function() {
-                  const nodes = [
-                    { id: 'a1', name: report.extracted_data?.product, group: 'Asset' },
-                    { id: 's1', name: report.extracted_data?.system || 'Main System', group: 'System' }
-                  ];
-                  const links = [{ source: 'a1', target: 's1' }];
-                  
-                  const tree = report.extracted_data?.assembly_tree;
-                  if (tree && tree.children) {
-                    tree.children.forEach((child, i) => {
-                      const assemblyId = `as${i}`;
-                      nodes.push({ id: assemblyId, name: child.name, group: child.type });
-                      links.push({ source: 's1', target: assemblyId });
-                      
-                      if (child.children) {
-                        child.children.forEach((sub, j) => {
-                          if (typeof sub === 'string') {
-                            const cid = `c${i}-${j}`;
-                            nodes.push({ id: cid, name: sub, group: 'Component' });
-                            links.push({ source: assemblyId, target: cid });
-                          } else {
-                            const subId = `sub${i}-${j}`;
-                            nodes.push({ id: subId, name: sub.name, group: sub.type });
-                            links.push({ source: assemblyId, target: subId });
-                            if (sub.children) {
-                              sub.children.forEach((leaf, k) => {
-                                const lid = `leaf${i}-${j}-${k}`;
-                                nodes.push({ id: lid, name: leaf, group: 'Component' });
-                                links.push({ source: subId, target: lid });
-                              });
+          <main style={{ position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, position: 'relative' }}>
+              <CadFilePreview 
+                assetName={report.extracted_data?.product} 
+                impactData={report.impact_analysis}
+                industry={report.extracted_data?.industry}
+                graphData={(function() {
+                    const nodes = [
+                      { id: 'a1', name: report.extracted_data?.product, group: 'Asset' },
+                      { id: 's1', name: report.extracted_data?.system || 'Main System', group: 'System' }
+                    ];
+                    const links = [{ source: 'a1', target: 's1' }];
+                    
+                    const tree = report.extracted_data?.assembly_tree;
+                    if (tree && tree.children) {
+                      tree.children.forEach((child, i) => {
+                        const assemblyId = `as${i}`;
+                        nodes.push({ id: assemblyId, name: child.name, group: child.type });
+                        links.push({ source: 's1', target: assemblyId });
+                        
+                        if (child.children) {
+                          child.children.forEach((sub, j) => {
+                            if (typeof sub === 'string') {
+                              const cid = `c${i}-${j}`;
+                              nodes.push({ id: cid, name: sub, group: 'Component' });
+                              links.push({ source: assemblyId, target: cid });
+                            } else {
+                              const subId = `sub${i}-${j}`;
+                              nodes.push({ id: subId, name: sub.name, group: sub.type });
+                              links.push({ source: assemblyId, target: subId });
+                              if (sub.children) {
+                                sub.children.forEach((leaf, k) => {
+                                  const lid = `leaf${i}-${j}-${k}`;
+                                  nodes.push({ id: lid, name: leaf, group: 'Component' });
+                                  links.push({ source: subId, target: lid });
+                                });
+                              }
                             }
-                          }
-                        });
-                      }
-                    });
-                  }
-                  return { nodes, links };
-                })()}
-            />
+                          });
+                        }
+                      });
+                    }
+                    return { nodes, links };
+                  })()}
+              />
+            </div>
+            
+            {/* Impact Analytics Row */}
+            <div style={{ 
+              height: 180, background: '#0a0b14', borderTop: '1px solid #1e293b', 
+              display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, padding: 24
+            }}>
+              <div style={{ background: 'rgba(30, 41, 59, 0.4)', borderRadius: 12, padding: 16, border: '1px solid #1e293b' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <ShieldCheck size={14} color="#ef4444" />
+                  <span style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', letterSpacing: '0.1em' }}>RISK INDEX</span>
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: report.impact_analysis?.risk_level === 'High' ? '#ef4444' : '#f59e0b', marginBottom: 4 }}>
+                  {report.impact_analysis?.risk_level}
+                </div>
+                <div style={{ width: '100%', height: 4, background: '#1e293b', borderRadius: 2, overflow: 'hidden', marginBottom: 8 }}>
+                  <div style={{ 
+                    width: report.impact_analysis?.risk_level === 'High' ? '85%' : '45%', 
+                    height: '100%', background: report.impact_analysis?.risk_level === 'High' ? '#ef4444' : '#f59e0b' 
+                  }} />
+                </div>
+                <div style={{ fontSize: 9, color: '#64748b' }}>Respect to {report.impact_analysis?.impacted_components?.length || 0} downstream dependencies.</div>
+              </div>
+
+              <div style={{ background: 'rgba(30, 41, 59, 0.4)', borderRadius: 12, padding: 16, border: '1px solid #1e293b' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Zap size={14} color="#00f5ff" />
+                  <span style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', letterSpacing: '0.1em' }}>CHANGE COST</span>
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#f8fafc', marginBottom: 4 }}>
+                  {report.impact_analysis?.estimated_cost}
+                </div>
+                <div style={{ display: 'flex', gap: 2, marginBottom: 8 }}>
+                  {[1,2,3,4,5,6,7,8].map(i => (
+                    <div key={i} style={{ flex: 1, height: 4, background: i <= (report.impact_analysis?.impacted_components?.length || 1) ? '#00f5ff' : '#1e293b', borderRadius: 1 }} />
+                  ))}
+                </div>
+                <div style={{ fontSize: 9, color: '#64748b' }}>Based on ₹5,000 per impacted node in the engineering graph.</div>
+              </div>
+
+              <div style={{ background: 'rgba(30, 41, 59, 0.4)', borderRadius: 12, padding: 16, border: '1px solid #1e293b' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <Clock size={14} color="#8b5cf6" />
+                  <span style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', letterSpacing: '0.1em' }}>EST. TIMELINE</span>
+                </div>
+                <div style={{ fontSize: 24, fontWeight: 800, color: '#f8fafc', marginBottom: 4 }}>
+                  {report.impact_analysis?.timeline}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <div style={{ flex: 1, height: 4, background: '#1e293b', borderRadius: 2 }}>
+                    <div style={{ width: '40%', height: '100%', background: '#8b5cf6', borderRadius: 2 }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 9, color: '#64748b' }}>Calculated at 0.5 weeks per propagation depth level.</div>
+              </div>
+            </div>
             
             {/* Overlay Branding */}
             <div style={{ 
-              position: 'absolute', bottom: 40, left: 40, 
+              position: 'absolute', top: 40, left: 40, 
               pointerEvents: 'none', opacity: 0.5 
             }}>
               <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.3em', color: '#3b82f6' }}>DesignIQ v4.0</div>

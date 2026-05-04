@@ -51,8 +51,12 @@ class AnalysisService:
             risk_level = "Low"
 
         base_cost = 5000
-        estimated_cost = base_cost + (dependency_count * 1500)
-        timeline_weeks = 1 + dependency_count // 2
+        complexity_factor = (len(component_name) * 150) % 3000  # Pseudo-random variance up to 3000
+        estimated_cost = base_cost + (dependency_count * 1500) + complexity_factor
+        
+        base_timeline = 1
+        time_variance = (len(component_name) % 3)
+        timeline_weeks = base_timeline + dependency_count // 2 + time_variance
         estimated_timeline = f"{timeline_weeks} weeks"
 
         # Fetch the CAD hierarchy for the matching component
