@@ -10,7 +10,7 @@ from backend.pipeline import cad_pipeline
 from backend.auth import get_password_hash, verify_password, create_access_token, decode_access_token
 from backend.analysis_service import analysis_service
 
-app = FastAPI(title="DesignIQ - Secure CAD Platform")
+app = FastAPI(title="VarunaDarshi - Secure CAD Platform")
 
 # Setup CORS
 app.add_middleware(

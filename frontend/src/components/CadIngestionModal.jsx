@@ -14,9 +14,9 @@ const PIPELINE_STEPS = [
 
 const CadIngestionModal = ({ onClose, onComplete }) => {
   const [selectedFile, setSelectedFile] = useState(null);
-  const [reportMode, setReportMode] = useState('Both'); 
+  const [reportMode, setReportMode] = useState('Both');
   const [currentStep, setCurrentStep] = useState(0);
-  const [status, setStatus] = useState('idle'); 
+  const [status, setStatus] = useState('idle');
   const [report, setReport] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -27,12 +27,12 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
   const simulateProgress = async (file) => {
     setStatus('processing');
     setCurrentStep(0);
-    
+
     for (let i = 0; i < PIPELINE_STEPS.length; i++) {
       setCurrentStep(i);
       const delay = i === 2 || i === 3 ? 1500 : 800;
       await new Promise(res => setTimeout(res, delay));
-      
+
       if (i === 4) {
         try {
           const res = await ingestCadData(file);
@@ -63,7 +63,7 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
         {/* Modern Header */}
         <header style={{
           padding: '20px 40px', background: 'rgba(15, 23, 42, 0.8)',
-          borderBottom: '1px solid #1e293b', display: 'flex', 
+          borderBottom: '1px solid #1e293b', display: 'flex',
           justifyContent: 'space-between', alignItems: 'center',
           backdropFilter: 'blur(10px)'
         }}>
@@ -113,7 +113,7 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
                 <h4 style={{ fontSize: 10, color: '#3b82f6', letterSpacing: '0.2em', fontWeight: 800, marginBottom: 20 }}>EXTRACTED PROPERTIES</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {Object.entries(report.extracted_data?.raw_metadata || {}).map(([key, val]) => (
-                    <div key={key} style={{ 
+                    <div key={key} style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,0.03)'
                     }}>
@@ -144,54 +144,54 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
           {/* Main Visual Workspace */}
           <main style={{ position: 'relative', background: '#000', display: 'flex', flexDirection: 'column' }}>
             <div style={{ flex: 1, position: 'relative' }}>
-              <CadFilePreview 
-                assetName={report.extracted_data?.product} 
+              <CadFilePreview
+                assetName={report.extracted_data?.product}
                 impactData={report.impact_analysis}
                 industry={report.extracted_data?.industry}
-                graphData={(function() {
-                    const nodes = [
-                      { id: 'a1', name: report.extracted_data?.product, group: 'Asset' },
-                      { id: 's1', name: report.extracted_data?.system || 'Main System', group: 'System' }
-                    ];
-                    const links = [{ source: 'a1', target: 's1' }];
-                    
-                    const tree = report.extracted_data?.assembly_tree;
-                    if (tree && tree.children) {
-                      tree.children.forEach((child, i) => {
-                        const assemblyId = `as${i}`;
-                        nodes.push({ id: assemblyId, name: child.name, group: child.type });
-                        links.push({ source: 's1', target: assemblyId });
-                        
-                        if (child.children) {
-                          child.children.forEach((sub, j) => {
-                            if (typeof sub === 'string') {
-                              const cid = `c${i}-${j}`;
-                              nodes.push({ id: cid, name: sub, group: 'Component' });
-                              links.push({ source: assemblyId, target: cid });
-                            } else {
-                              const subId = `sub${i}-${j}`;
-                              nodes.push({ id: subId, name: sub.name, group: sub.type });
-                              links.push({ source: assemblyId, target: subId });
-                              if (sub.children) {
-                                sub.children.forEach((leaf, k) => {
-                                  const lid = `leaf${i}-${j}-${k}`;
-                                  nodes.push({ id: lid, name: leaf, group: 'Component' });
-                                  links.push({ source: subId, target: lid });
-                                });
-                              }
+                graphData={(function () {
+                  const nodes = [
+                    { id: 'a1', name: report.extracted_data?.product, group: 'Asset' },
+                    { id: 's1', name: report.extracted_data?.system || 'Main System', group: 'System' }
+                  ];
+                  const links = [{ source: 'a1', target: 's1' }];
+
+                  const tree = report.extracted_data?.assembly_tree;
+                  if (tree && tree.children) {
+                    tree.children.forEach((child, i) => {
+                      const assemblyId = `as${i}`;
+                      nodes.push({ id: assemblyId, name: child.name, group: child.type });
+                      links.push({ source: 's1', target: assemblyId });
+
+                      if (child.children) {
+                        child.children.forEach((sub, j) => {
+                          if (typeof sub === 'string') {
+                            const cid = `c${i}-${j}`;
+                            nodes.push({ id: cid, name: sub, group: 'Component' });
+                            links.push({ source: assemblyId, target: cid });
+                          } else {
+                            const subId = `sub${i}-${j}`;
+                            nodes.push({ id: subId, name: sub.name, group: sub.type });
+                            links.push({ source: assemblyId, target: subId });
+                            if (sub.children) {
+                              sub.children.forEach((leaf, k) => {
+                                const lid = `leaf${i}-${j}-${k}`;
+                                nodes.push({ id: lid, name: leaf, group: 'Component' });
+                                links.push({ source: subId, target: lid });
+                              });
                             }
-                          });
-                        }
-                      });
-                    }
-                    return { nodes, links };
-                  })()}
+                          }
+                        });
+                      }
+                    });
+                  }
+                  return { nodes, links };
+                })()}
               />
             </div>
-            
+
             {/* Impact Analytics Row */}
-            <div style={{ 
-              height: 180, background: '#0a0b14', borderTop: '1px solid #1e293b', 
+            <div style={{
+              height: 180, background: '#0a0b14', borderTop: '1px solid #1e293b',
               display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, padding: 24
             }}>
               <div style={{ background: 'rgba(30, 41, 59, 0.4)', borderRadius: 12, padding: 16, border: '1px solid #1e293b' }}>
@@ -203,9 +203,9 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
                   {report.impact_analysis?.risk_level}
                 </div>
                 <div style={{ width: '100%', height: 4, background: '#1e293b', borderRadius: 2, overflow: 'hidden', marginBottom: 8 }}>
-                  <div style={{ 
-                    width: report.impact_analysis?.risk_level === 'High' ? '85%' : '45%', 
-                    height: '100%', background: report.impact_analysis?.risk_level === 'High' ? '#ef4444' : '#f59e0b' 
+                  <div style={{
+                    width: report.impact_analysis?.risk_level === 'High' ? '85%' : '45%',
+                    height: '100%', background: report.impact_analysis?.risk_level === 'High' ? '#ef4444' : '#f59e0b'
                   }} />
                 </div>
                 <div style={{ fontSize: 9, color: '#64748b' }}>Respect to {report.impact_analysis?.impacted_components?.length || 0} downstream dependencies.</div>
@@ -220,7 +220,7 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
                   {report.impact_analysis?.estimated_cost}
                 </div>
                 <div style={{ display: 'flex', gap: 2, marginBottom: 8 }}>
-                  {[1,2,3,4,5,6,7,8].map(i => (
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
                     <div key={i} style={{ flex: 1, height: 4, background: i <= (report.impact_analysis?.impacted_components?.length || 1) ? '#00f5ff' : '#1e293b', borderRadius: 1 }} />
                   ))}
                 </div>
@@ -243,13 +243,13 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
                 <div style={{ fontSize: 9, color: '#64748b' }}>Calculated at 0.5 weeks per propagation depth level.</div>
               </div>
             </div>
-            
+
             {/* Overlay Branding */}
-            <div style={{ 
-              position: 'absolute', top: 40, left: 40, 
-              pointerEvents: 'none', opacity: 0.5 
+            <div style={{
+              position: 'absolute', top: 40, left: 40,
+              pointerEvents: 'none', opacity: 0.5
             }}>
-              <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.3em', color: '#3b82f6' }}>DesignIQ v4.0</div>
+              <div style={{ fontSize: 14, fontWeight: 900, letterSpacing: '0.3em', color: '#3b82f6' }}>VarunaDarshi v4.0</div>
             </div>
           </main>
         </div>
@@ -262,7 +262,7 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
       <div className="modal-content ingestion-modal">
         <button className="close-btn" onClick={onClose}><X size={20} /></button>
         <h2 className="modal-title">Advanced CAD Pipeline</h2>
-        
+
         {status === 'idle' && (
           <form onSubmit={handleSubmit} className="ingestion-form">
             <div className="file-upload-zone" onClick={() => document.getElementById('cadFile').click()}>

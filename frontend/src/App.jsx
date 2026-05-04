@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  LayoutDashboard, 
-  GitBranch, 
-  Database, 
-  FileCode, 
-  ShieldCheck, 
-  Bell, 
-  Upload, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  GitBranch,
+  Database,
+  FileCode,
+  ShieldCheck,
+  Bell,
+  Upload,
+  LogOut,
   ChevronRight,
   Monitor
 } from 'lucide-react';
@@ -58,14 +58,14 @@ function App() {
       setImpactData(null);
       const systemsRes = await fetchSystems(industryObj.id);
       setSystems(systemsRes.systems);
-      
+
       let assetToFetch = specificAsset;
       if (!assetToFetch) {
         const matchingAsset = assets.find(a => a.industry === industryObj.id);
         assetToFetch = matchingAsset ? matchingAsset.name : industryObj.asset;
         if (matchingAsset && !selectedAsset) setSelectedAsset(matchingAsset);
       }
-      
+
       const graphRes = await fetchGraph(assetToFetch, type);
       setGraphData(graphRes);
     } catch (error) {
@@ -149,47 +149,47 @@ function App() {
         <div className="sidebar-header">
           <div className="brand">
             <Monitor size={24} />
-            <span>DesignIQ</span>
+            <span>VarunaDarshi</span>
           </div>
         </div>
 
         <nav className="nav-menu">
-          <div 
+          <div
             className={`nav-item ${view === 'dashboard' ? 'active' : ''}`}
             onClick={() => setView('dashboard')}
           >
             <LayoutDashboard size={20} />
             <span>Command Center</span>
           </div>
-          <div 
+          <div
             className={`nav-item ${view === 'change-requests' ? 'active' : ''}`}
             onClick={() => setView('change-requests')}
           >
             <GitBranch size={20} />
             <span>Change Requests</span>
           </div>
-          <div 
+          <div
             className={`nav-item ${view === 'bom' ? 'active' : ''}`}
             onClick={() => setView('bom')}
           >
             <Database size={20} />
             <span>BOM Components</span>
           </div>
-          <div 
+          <div
             className={`nav-item ${view === 'file-manager' ? 'active' : ''}`}
             onClick={() => setView('file-manager')}
           >
             <FileCode size={20} />
             <span>CAD File Manager</span>
           </div>
-          <div 
+          <div
             className={`nav-item ${view === 'compliance' ? 'active' : ''}`}
             onClick={() => setView('compliance')}
           >
             <ShieldCheck size={20} />
             <span>Compliance Validation</span>
           </div>
-          <div 
+          <div
             className={`nav-item ${view === 'notifications' ? 'active' : ''}`}
             onClick={() => setView('notifications')}
           >
@@ -207,9 +207,9 @@ function App() {
               <span className="name">{user.name}</span>
               <span className="role">{user.role}</span>
             </div>
-            <LogOut 
-              size={18} 
-              className="logout-icon" 
+            <LogOut
+              size={18}
+              className="logout-icon"
               style={{ marginLeft: 'auto', cursor: 'pointer', opacity: 0.6 }}
               onClick={handleLogout}
             />
@@ -254,7 +254,7 @@ function App() {
               />
             </div>
           )}
-          
+
           {view === 'change-requests' && (
             <ChangeRequests
               changeRequests={changeRequests}
@@ -267,9 +267,9 @@ function App() {
               <div className="bom-sidebar">
                 <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>Architecture</span>
-                  <select 
+                  <select
                     className="select-input"
-                    value={selectedIndustry.id} 
+                    value={selectedIndustry.id}
                     onChange={(e) => {
                       const ind = INDUSTRIES.find(i => i.id === e.target.value);
                       setSelectedIndustry(ind);
@@ -279,12 +279,12 @@ function App() {
                     {INDUSTRIES.map(ind => <option key={ind.id} value={ind.id}>{ind.name}</option>)}
                   </select>
                 </div>
-                
+
                 <div style={{ padding: '12px' }}>
                   <div className="form-group" style={{ marginBottom: '16px' }}>
                     <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Active Asset</label>
-                    <select 
-                      className="select-input" 
+                    <select
+                      className="select-input"
                       style={{ width: '100%', padding: '8px' }}
                       value={selectedAsset?.name || ''}
                       onChange={(e) => setSelectedAsset(assets.find(a => a.name === e.target.value))}
@@ -404,12 +404,12 @@ function App() {
       </main>
 
       {showIngestModal && (
-        <CadIngestionModal 
+        <CadIngestionModal
           onClose={() => setShowIngestModal(false)}
           onComplete={(mode, report) => {
             setView('bom');
             setReportType(mode);
-            
+
             // Refresh global data
             fetchDashboardStats().then(setDashboardStats);
             fetchAssets().then(setAssets);
@@ -424,7 +424,7 @@ function App() {
               }
             }
             loadIndustryData(selectedIndustry, mode);
-          }} 
+          }}
         />
       )}
     </div>

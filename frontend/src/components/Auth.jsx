@@ -13,7 +13,7 @@ const Auth = ({ onAuthSuccess }) => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
-    
+
     try {
       if (isLogin) {
         const data = await login(email, password);
@@ -40,32 +40,32 @@ const Auth = ({ onAuthSuccess }) => {
             <User size={32} color="#3b82f6" />
           </div>
           <h2>{isLogin ? "Welcome Back" : "Create Account"}</h2>
-          <p>{isLogin ? "Enter your credentials to access DesignIQ" : "Join the multi-industry CAD platform"}</p>
+          <p>{isLogin ? "Enter your credentials to access VarunaDarshi" : "Join the multi-industry CAD platform"}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-group">
             <div className="input-with-icon">
               <Mail size={18} />
-              <input 
-                type="email" 
-                placeholder="Email Address" 
-                value={email} 
-                onChange={(e) => setEmail(e.target.value)} 
-                required 
+              <input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
             </div>
           </div>
-          
+
           <div className="form-group">
             <div className="input-with-icon">
               <Lock size={18} />
-              <input 
-                type="password" 
-                placeholder="Password" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-                required 
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
               />
             </div>
           </div>
