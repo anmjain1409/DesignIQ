@@ -140,15 +140,17 @@ class Neo4jClient:
 
             rel_type = f"HAS_{label.upper()}"
             
-            # Merge the node
+            # Merge the node and its properties
             node_query = f"""
             MATCH (p:{parent_label} {{name: $parent_name}})
             MERGE (n:{label} {{name: $name}})
             ON CREATE SET n.createdAt = timestamp()
             MERGE (p)-[:{rel_type}]->(n)
-            WITH n, $props AS p_data
-            UNWIND keys(p_data) AS key
-            MERGE (n)-[:HAS_PROPERTY]->(prop:Property {{name: key, value: toString(p_data[key])}})
+            WITH n
+            UNWIND CASE WHEN keys($props) = [] THEN [null] ELSE keys($props) END AS key
+            WITH n, key
+            WHERE key IS NOT NULL
+            MERGE (n)-[:HAS_PROPERTY]->(prop:Property {{name: key, value: toString($props[key])}})
             RETURN n
             """
             self._execute_query(node_query, {
@@ -296,7 +298,7 @@ class Neo4jClient:
 
     def get_node_properties(self, node_name: str, node_type: str, user_email: str):
         query = f"""
-        MATCH (u:User {{email: $user_email}})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT|CONNECTED_TO*0..]->(n:{node_type} {{name: $node_name}})
+        MATCH (u:User {{email: $user_email}})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_ASSEMBLY|HAS_SUBASSEMBLY|HAS_COMPONENT*0..5]->(n:{node_type} {{name: $node_name}})
         OPTIONAL MATCH (n)-[:HAS_PROPERTY]->(p:Property)
         RETURN n, collect({{key: p.name, value: p.value}}) AS properties
         """

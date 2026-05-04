@@ -32,6 +32,7 @@ function App() {
   const [selectedIndustry, setSelectedIndustry] = useState(INDUSTRIES[0]);
   const [isGenericView, setIsGenericView] = useState(false);
   const [reportType, setReportType] = useState('Both');
+  const [selectedAsset, setSelectedAsset] = useState(null);
   const [systems, setSystems] = useState([]);
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [impactData, setImpactData] = useState(null);
@@ -42,9 +43,9 @@ function App() {
 
   useEffect(() => {
     if (isLoggedIn && view === 'bom') {
-      loadIndustryData(selectedIndustry, reportType);
+      loadIndustryData(selectedIndustry, reportType, selectedAsset?.name);
     }
-  }, [selectedIndustry, isLoggedIn, reportType, view]);
+  }, [selectedIndustry, isLoggedIn, reportType, view, selectedAsset]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -52,15 +53,18 @@ function App() {
     setIsLoggedIn(false);
   };
 
-  const loadIndustryData = async (industryObj, type = 'Both') => {
+  const loadIndustryData = async (industryObj, type = 'Both', specificAsset = null) => {
     try {
       setImpactData(null);
       const systemsRes = await fetchSystems(industryObj.id);
       setSystems(systemsRes.systems);
       
-      // Find the actual asset name for this industry from the user's uploaded assets
-      const matchingAsset = assets.find(a => a.industry === industryObj.id);
-      const assetToFetch = matchingAsset ? matchingAsset.name : industryObj.asset;
+      let assetToFetch = specificAsset;
+      if (!assetToFetch) {
+        const matchingAsset = assets.find(a => a.industry === industryObj.id);
+        assetToFetch = matchingAsset ? matchingAsset.name : industryObj.asset;
+        if (matchingAsset && !selectedAsset) setSelectedAsset(matchingAsset);
+      }
       
       const graphRes = await fetchGraph(assetToFetch, type);
       setGraphData(graphRes);
@@ -266,13 +270,35 @@ function App() {
                   <select 
                     className="select-input"
                     value={selectedIndustry.id} 
-                    onChange={(e) => setSelectedIndustry(INDUSTRIES.find(i => i.id === e.target.value))}
+                    onChange={(e) => {
+                      const ind = INDUSTRIES.find(i => i.id === e.target.value);
+                      setSelectedIndustry(ind);
+                      setSelectedAsset(null); // Reset asset so it picks the first one for this industry
+                    }}
                   >
                     {INDUSTRIES.map(ind => <option key={ind.id} value={ind.id}>{ind.name}</option>)}
                   </select>
                 </div>
                 
                 <div style={{ padding: '12px' }}>
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8, display: 'block' }}>Active Asset</label>
+                    <select 
+                      className="select-input" 
+                      style={{ width: '100%', padding: '8px' }}
+                      value={selectedAsset?.name || ''}
+                      onChange={(e) => setSelectedAsset(assets.find(a => a.name === e.target.value))}
+                    >
+                      {assets.filter(a => a.industry === selectedIndustry.id).length > 0 ? (
+                        assets.filter(a => a.industry === selectedIndustry.id).map(a => (
+                          <option key={a.name} value={a.name}>{a.name}</option>
+                        ))
+                      ) : (
+                        <option value="">{selectedIndustry.asset}</option>
+                      )}
+                    </select>
+                  </div>
+
                   <div className="toggle-container" style={{ marginBottom: '12px' }}>
                     <button className={`toggle-btn ${!isGenericView ? 'active' : ''}`} onClick={() => setIsGenericView(false)}>Industry</button>
                     <button className={`toggle-btn ${isGenericView ? 'active' : ''}`} onClick={() => setIsGenericView(true)}>Generic</button>
