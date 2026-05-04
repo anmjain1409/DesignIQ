@@ -147,25 +147,44 @@ const CadIngestionModal = ({ onClose, onComplete }) => {
               assetName={report.extracted_data?.product} 
               impactData={report.impact_analysis}
               industry={report.extracted_data?.industry}
-              graphData={{
-                nodes: [
-                  { id: 'a1', name: report.extracted_data?.product, group: 'Asset' },
-                  { id: 's1', name: report.extracted_data?.system || 'Main System', group: 'System' },
-                  ...(report.extracted_data?.raw_metadata?.components 
-                    ? JSON.parse(report.extracted_data.raw_metadata.components.replace(/'/g, '"')).map((c, i) => ({
-                        id: `c${i}`, name: c, group: 'Component'
-                      }))
-                    : [])
-                ],
-                links: [
-                  { source: 'a1', target: 's1' },
-                  ...(report.extracted_data?.raw_metadata?.components 
-                    ? JSON.parse(report.extracted_data.raw_metadata.components.replace(/'/g, '"')).map((c, i) => ({
-                        source: 's1', target: `c${i}`
-                      }))
-                    : [])
-                ]
-              }}
+              graphData={(function() {
+                  const nodes = [
+                    { id: 'a1', name: report.extracted_data?.product, group: 'Asset' },
+                    { id: 's1', name: report.extracted_data?.system || 'Main System', group: 'System' }
+                  ];
+                  const links = [{ source: 'a1', target: 's1' }];
+                  
+                  const tree = report.extracted_data?.assembly_tree;
+                  if (tree && tree.children) {
+                    tree.children.forEach((child, i) => {
+                      const assemblyId = `as${i}`;
+                      nodes.push({ id: assemblyId, name: child.name, group: child.type });
+                      links.push({ source: 's1', target: assemblyId });
+                      
+                      if (child.children) {
+                        child.children.forEach((sub, j) => {
+                          if (typeof sub === 'string') {
+                            const cid = `c${i}-${j}`;
+                            nodes.push({ id: cid, name: sub, group: 'Component' });
+                            links.push({ source: assemblyId, target: cid });
+                          } else {
+                            const subId = `sub${i}-${j}`;
+                            nodes.push({ id: subId, name: sub.name, group: sub.type });
+                            links.push({ source: assemblyId, target: subId });
+                            if (sub.children) {
+                              sub.children.forEach((leaf, k) => {
+                                const lid = `leaf${i}-${j}-${k}`;
+                                nodes.push({ id: lid, name: leaf, group: 'Component' });
+                                links.push({ source: subId, target: lid });
+                              });
+                            }
+                          }
+                        });
+                      }
+                    });
+                  }
+                  return { nodes, links };
+                })()}
             />
             
             {/* Overlay Branding */}

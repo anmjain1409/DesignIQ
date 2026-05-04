@@ -43,61 +43,44 @@ class Neo4jClient:
     def get_graph_by_asset(self, asset_name: str, user_email: str, filter_type: str = "Both"):
         query = """
         MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset {name: $asset_name})
-        OPTIONAL MATCH (a)-[r1:HAS_SYSTEM]->(s:System)
-        OPTIONAL MATCH (s)-[r2:HAS_COMPONENT]->(c:Component)
-        WHERE $filter_type = 'Both' OR c.type = $filter_type
-        
-        OPTIONAL MATCH (c)-[r3:CONNECTED_TO]->(c2:Component)
-        WHERE $filter_type = 'Both' OR c2.type = $filter_type
-        
-        OPTIONAL MATCH (c)-[r_rep:REPRESENTS]-(c_rep:Component)
-        WHERE $filter_type = 'Both'
-        
-        OPTIONAL MATCH (c)-[r4:HAS_PROPERTY]->(prop:Property)
-        
-        RETURN a, r1, s, r2, c, r3, c2, r4, prop, r_rep, c_rep
+        OPTIONAL MATCH (n1)-[r]->(n2)
+        WHERE (n1 = a OR (a)-[:HAS_SYSTEM|HAS_ASSEMBLY|HAS_SUBASSEMBLY|HAS_COMPONENT*1..4]->(n1))
+          AND type(r) IN ['HAS_SYSTEM', 'HAS_ASSEMBLY', 'HAS_SUBASSEMBLY', 'HAS_COMPONENT', 'CONNECTED_TO', 'HAS_PROPERTY']
+          AND ($filter_type = 'Both' OR n2.type = $filter_type OR NOT n2:Component)
+        RETURN n1, labels(n1) as l1, r, n2, labels(n2) as l2
         """
         records = self._execute_query(query, {"asset_name": asset_name, "user_email": user_email, "filter_type": filter_type})
         
-        # Transform to node and link format for react-force-graph
         nodes_dict = {}
         links = []
         
-        def add_node(node_obj, node_type, extra_labels=None):
+        def process_node(node_obj, labels):
             if not node_obj: return None
-            node_id = f"{node_type}_{node_obj['name']}"
+            group = labels[0] if labels else "Unknown"
+            node_id = f"{group}_{node_obj.get('name', 'id'+str(id(node_obj)))}"
             if node_id not in nodes_dict:
                 nodes_dict[node_id] = {
                     "id": node_id,
-                    "name": node_obj["name"],
-                    "group": node_type,
-                    "val": 1
+                    "name": node_obj.get("name", "Unknown"),
+                    "group": group,
+                    "val": 1,
+                    "properties": {k: v for k, v in node_obj.items() if k not in ['name']}
                 }
-                if extra_labels:
-                    nodes_dict[node_id].update(extra_labels)
-                if 'type' in node_obj:
-                    nodes_dict[node_id]["type"] = node_obj['type']
             return node_id
 
-        for record in records:
-            a_id = add_node(record.get('a'), "Asset", {"industry": record.get('a', {}).get('industry')})
-            s_id = add_node(record.get('s'), "System", {"generic": record.get('s', {}).get('generic')})
-            c_id = add_node(record.get('c'), "Component")
-            c2_id = add_node(record.get('c2'), "Component")
-            c_rep_id = add_node(record.get('c_rep'), "Component")
-            prop_id = add_node(record.get('prop'), "Property")
-            
-            if a_id and s_id and {"source": a_id, "target": s_id} not in links:
-                links.append({"source": a_id, "target": s_id})
-            if s_id and c_id and {"source": s_id, "target": c_id} not in links:
-                links.append({"source": s_id, "target": c_id})
-            if c_id and c2_id and {"source": c_id, "target": c2_id} not in links:
-                links.append({"source": c_id, "target": c2_id})
-            if c_id and prop_id and {"source": c_id, "target": prop_id} not in links:
-                links.append({"source": c_id, "target": prop_id})
-            if c_id and c_rep_id and {"source": c_id, "target": c_rep_id} not in links:
-                links.append({"source": c_id, "target": c_rep_id})
+        for r in records:
+            n1_id = process_node(r['n1'], r['l1'])
+            n2_id = process_node(r['n2'], r['l2'])
+            if n1_id and n2_id:
+                rel_type = "HAS_RELATION"
+                if r['r']:
+                    # Extract type from relationship if possible, else use default
+                    rel_type = "CONNECTED" # Simplified for graph view
                 
+                link = {"source": n1_id, "target": n2_id, "type": rel_type}
+                if link not in links:
+                    links.append(link)
+
         return {
             "nodes": list(nodes_dict.values()),
             "links": links
@@ -105,55 +88,83 @@ class Neo4jClient:
 
     def ingest_cad_data(self, data: dict, industry_prefix: str, user_email: str = None):
         # Ingestion logic with Asset/System/Component hierarchy from flowchart
-        # We ensure isolation by merging nodes relative to their parents and the user
-        query = f"""
-        MATCH (u:User {{email: $user_email}})
+        query = """
+        MATCH (u:User {email: $user_email})
+        MERGE (u)-[:OWNS]->(a:Asset {name: $product, industry: $industry})
+        ON CREATE SET a.createdAt = timestamp()
         
-        // Asset is unique to user
-        MERGE (u)-[:OWNS]->(a:Asset {{name: $product, industry: $industry}})
-        ON CREATE SET a.createdAt = timestamp(), a.owner = $user_email
-        
-        // System is unique to asset
-        MERGE (a)-[:HAS_SYSTEM]->(s:System {{name: $system}})
+        MERGE (a)-[:HAS_SYSTEM]->(s:System {name: $system})
         ON CREATE SET s.generic = $generic_system
         
-        // Component is unique to system
-        MERGE (s)-[:HAS_COMPONENT]->(comp:Component {{name: $part, type: $type}})
+        MERGE (s)-[:HAS_COMPONENT]->(comp:Component {name: $part, type: $type})
         ON CREATE SET 
             comp.assembly = $assembly,
             comp.supplier = $supplier,
             comp.version = $version
             
-        // Add Properties unique to component
         WITH comp, $raw_metadata AS raw
         UNWIND keys(raw) AS prop_name
-        MERGE (comp)-[:HAS_PROPERTY]->(p:Property {{name: prop_name, value: toString(raw[prop_name])}})
-        
-        // Dynamic Connection Parser: Link components if they appear in a connection string
-        WITH comp, $raw_metadata AS raw
-        WHERE raw.connections IS NOT NULL
-        WITH comp, split(replace(replace(replace(raw.connections, "[", ""), "]", ""), "'", ""), ",") AS conn_list
-        UNWIND conn_list AS conn
-        WITH comp, trim(split(conn, "(")[0]) AS link_str
-        WHERE link_str CONTAINS "-"
-        WITH comp, split(link_str, "-")[0] AS source_name, split(link_str, "-")[1] AS target_name
-        MATCH (u:User {{email: $user_email}})-[:OWNS]->(asset:Asset)-[:HAS_SYSTEM|HAS_COMPONENT*1..2]->(other:Component)
-        WHERE (other.name = source_name OR other.name = target_name) AND id(other) <> id(comp)
-        MERGE (comp)-[:CONNECTED_TO]->(other)
-        
-        // Mapping Layer: Link 2D and 3D counterparts within the SAME asset/user context
-        WITH comp
-        MATCH (u:User {{email: $user_email}})-[:OWNS]->(asset:Asset)-[:HAS_SYSTEM|HAS_COMPONENT*1..2]->(other:Component)
-        WHERE id(other) <> id(comp) 
-          AND other.name = comp.name
-          AND other.type <> comp.type
-        MERGE (comp)-[:REPRESENTS]-(other)
-        
+        MERGE (comp)-[:HAS_PROPERTY]->(p:Property {name: prop_name, value: toString(raw[prop_name])})
         RETURN comp
         """
-        parameters = {**data, "user_email": user_email}
-        self._execute_query(query, parameters)
+        self._execute_query(query, {**data, "user_email": user_email})
         return True
+
+    def ingest_recursive_structure(self, tree, product, industry, system_name, generic_system, user_email, type_label):
+        """Recursively ingest an assembly tree into Neo4j."""
+        
+        # 1. Ensure User -> Asset -> System exists
+        base_query = """
+        MATCH (u:User {email: $user_email})
+        MERGE (u)-[:OWNS]->(a:Asset {name: $product, industry: $industry})
+        ON CREATE SET a.createdAt = timestamp()
+        MERGE (a)-[:HAS_SYSTEM]->(s:System {name: $system})
+        ON CREATE SET s.generic = $generic_system
+        RETURN s
+        """
+        self._execute_query(base_query, {
+            "user_email": user_email,
+            "product": product,
+            "industry": industry,
+            "system": system_name,
+            "generic_system": generic_system
+        })
+
+        def _ingest_node(parent_name, parent_label, node):
+            if isinstance(node, str):
+                # It's a leaf component
+                comp_query = f"""
+                MATCH (p:{parent_label} {{name: $parent_name}})
+                MERGE (p)-[:HAS_COMPONENT]->(c:Component {{name: $name, type: $type}})
+                ON CREATE SET c.createdAt = timestamp()
+                """
+                self._execute_query(comp_query, {
+                    "parent_name": parent_name,
+                    "name": node,
+                    "type": type_label
+                })
+            else:
+                # It's an Assembly or SubAssembly
+                name = node['name']
+                label = node['type'] # 'Assembly' or 'SubAssembly'
+                rel_type = f"HAS_{label.upper()}"
+                
+                node_query = f"""
+                MATCH (p:{parent_label} {{name: $parent_name}})
+                MERGE (p)-[:{rel_type}]->(n:{label} {{name: $name}})
+                ON CREATE SET n.createdAt = timestamp()
+                """
+                self._execute_query(node_query, {
+                    "parent_name": parent_name,
+                    "name": name
+                })
+                
+                for child in node.get('children', []):
+                    _ingest_node(name, label, child)
+
+        # Start recursion from System
+        for child in tree.get('children', []):
+            _ingest_node(system_name, "System", child)
 
     def run_impact_analysis(self, node_name: str, node_type: str, user_email: str):
         # Impact Analysis Engine: Graph Traversal CONNECTED_TO*

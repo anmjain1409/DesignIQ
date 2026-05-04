@@ -106,6 +106,13 @@ function App() {
         setDashboardStats(statsData);
         setAssets(assetsData);
         setChangeRequests(crData);
+
+        // Fetch graph for the latest asset if on dashboard
+        if (view === 'dashboard' && assetsData.length > 0) {
+          const latestAsset = assetsData[0].name;
+          const graphRes = await fetchGraph(latestAsset, 'Both');
+          setGraphData(graphRes);
+        }
       } catch (err) {
         console.error("Initial load failed", err);
       } finally {

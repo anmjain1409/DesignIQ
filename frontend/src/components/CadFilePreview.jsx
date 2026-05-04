@@ -1,5 +1,5 @@
 import React, { Suspense, useMemo, useState, useRef, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { 
   OrbitControls, 
   Stage, 
@@ -28,43 +28,121 @@ const RISK_COLORS = {
 };
 
 // Procedural Industry Models
-function ShipHull() {
+// High-Fidelity Procedural Ship
+function ShipHull({ xRay, isExploded }) {
+  const opacity = xRay ? 0.2 : 1;
+  const transparent = xRay;
+  const baseColor = xRay ? "#3b82f6" : "#2d3a4f"; // Brighter base color
+  const metalColor = xRay ? "#60a5fa" : "#475569";
+
+  // Exploded offsets - more subtle
+  const hullY = isExploded ? -0.8 : 0;
+  const bridgeY = isExploded ? 1.5 : 0;
+  const turretOffset = isExploded ? 1 : 0;
+
   return (
     <group position={[0, -0.5, 0]}>
-      <mesh receiveShadow castShadow>
-        <boxGeometry args={[12, 1, 4]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
+      {/* Lower Hull */}
+      <mesh receiveShadow castShadow position={[0, hullY, 0]}>
+        <boxGeometry args={[12, 1, 3.5]} />
+        <meshPhysicalMaterial 
+          color={baseColor} 
+          metalness={0.7} 
+          roughness={0.2} 
+          clearcoat={1}
+          transparent={transparent} 
+          opacity={opacity} 
+        />
       </mesh>
-      <mesh position={[7, 0, 0]} rotation={[0, 0, -0.2]} receiveShadow castShadow>
-        <coneGeometry args={[2.5, 3, 4]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} />
+      
+      {/* Sloped Bow Section */}
+      <mesh position={[6, 0.1 + hullY, 0]} rotation={[0, 0, -0.3]} castShadow>
+        <boxGeometry args={[2, 1.2, 3.5]} />
+        <meshPhysicalMaterial color={baseColor} metalness={0.7} roughness={0.2} transparent={transparent} opacity={opacity} />
       </mesh>
-      <mesh position={[-6.5, 0.2, 0]} receiveShadow castShadow>
-        <boxGeometry args={[1, 1.5, 4]} />
-        <meshStandardMaterial color="#0f172a" metalness={0.9} />
+      
+      {/* Deck Plane */}
+      <mesh position={[0, 0.55 + hullY, 0]} receiveShadow>
+        <boxGeometry args={[12.5, 0.1, 3.8]} />
+        <meshPhysicalMaterial color="#1e293b" metalness={0.5} roughness={0.8} />
       </mesh>
+
+      {/* Superstructure - Tier 1 */}
+      <mesh position={[-1, 1.2 + bridgeY, 0]} castShadow>
+        <boxGeometry args={[5, 1.2, 2.8]} />
+        <meshPhysicalMaterial color={metalColor} metalness={0.8} roughness={0.2} transparent={transparent} opacity={opacity} />
+      </mesh>
+
+      {/* Superstructure - Bridge (Glass look) */}
+      <mesh position={[0, 2.4 + bridgeY * 1.3, 0]} castShadow>
+        <boxGeometry args={[2.5, 1.2, 2.2]} />
+        <meshPhysicalMaterial 
+          color={xRay ? "#60a5fa" : "#cbd5e1"} 
+          metalness={0.2} 
+          roughness={0} 
+          transmission={0.9} 
+          thickness={1}
+          transparent={true}
+          opacity={xRay ? 0.3 : 0.6}
+        />
+      </mesh>
+
+      {/* Mast & Radar */}
+      <group position={[-0.5, 3 + bridgeY * 1.8, 0]}>
+        <mesh castShadow>
+          <cylinderGeometry args={[0.05, 0.1, 2]} />
+          <meshPhysicalMaterial color="#475569" />
+        </mesh>
+        <mesh position={[0, 1, 0]} rotation={[0, 0.5, 0]}>
+          <boxGeometry args={[1.5, 0.1, 0.4]} />
+          <meshPhysicalMaterial color="#f8fafc" />
+        </mesh>
+      </group>
+
+      {/* Turrets */}
+      {[ [3.5, 0.8, 0], [5.5, 0.7, 0], [-4.5, 0.8, 0] ].map((pos, i) => (
+        <group key={i} position={[pos[0], pos[1] + turretOffset, pos[2]]}>
+          <mesh castShadow>
+            <cylinderGeometry args={[0.9, 1.1, 0.5, 12]} />
+            <meshPhysicalMaterial color="#334155" metalness={1} roughness={0.1} />
+          </mesh>
+          <mesh position={[0.8, 0.2, 0.2]} rotation={[0, 0, Math.PI/2]}>
+            <cylinderGeometry args={[0.08, 0.08, 2.5, 8]} />
+            <meshPhysicalMaterial color="#000" metalness={1} />
+          </mesh>
+          <mesh position={[0.8, 0.2, -0.2]} rotation={[0, 0, Math.PI/2]}>
+            <cylinderGeometry args={[0.08, 0.08, 2.5, 8]} />
+            <meshPhysicalMaterial color="#000" metalness={1} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
 }
 
-function CarChassis() {
+function CarChassis({ xRay, isExploded }) {
+  const opacity = xRay ? 0.2 : 1;
+  const transparent = xRay;
+  const offset = isExploded ? 1.5 : 0;
   return (
     <group position={[0, -0.5, 0]}>
-      <mesh receiveShadow castShadow>
+      <mesh receiveShadow castShadow position={[0, -offset, 0]}>
         <boxGeometry args={[8, 0.5, 4]} />
-        <meshStandardMaterial color="#1e293b" metalness={0.8} />
+        <meshPhysicalMaterial color="#2d3a4f" metalness={0.8} transparent={transparent} opacity={opacity} />
       </mesh>
       {[[-3, 0, 2], [3, 0, 2], [-3, 0, -2], [3, 0, -2]].map((pos, i) => (
-        <mesh key={i} position={pos} rotation={[Math.PI/2, 0, 0]}>
+        <mesh key={i} position={[pos[0] * (1 + offset/4), pos[1], pos[2] * (1 + offset/2)]} rotation={[Math.PI/2, 0, 0]}>
           <cylinderGeometry args={[0.8, 0.8, 0.5, 16]} />
-          <meshStandardMaterial color="#000000" roughness={0.8} />
+          <meshPhysicalMaterial color="#000000" roughness={0.8} transparent={transparent} opacity={opacity} />
         </mesh>
       ))}
     </group>
   );
 }
 
-function ComponentMesh({ node, position, isAffected, isTarget, riskLevel, onClick, isSelected }) {
+function ComponentMesh({ node, position, isAffected, isTarget, riskLevel, onClick, isSelected, isExploded, xRay }) {
+  const groupRef = useRef();
+  
   const color = useMemo(() => {
     if (isTarget) return RISK_COLORS.Target;
     if (isAffected) return RISK_COLORS[riskLevel] || RISK_COLORS.Default;
@@ -73,22 +151,46 @@ function ComponentMesh({ node, position, isAffected, isTarget, riskLevel, onClic
 
   const scale = isTarget || isSelected ? 1.3 : 1;
   const isSystem = node.group === 'System' || node.group === 'Asset';
+  const isAssembly = node.group === 'Assembly' || node.group === 'SubAssembly';
+
+  // target position for animation - reduced multiplier
+  const targetPos = useMemo(() => {
+    if (!isExploded) return position;
+    return [
+      position[0] * 1.8,
+      position[1] * 1.2 + 3,
+      position[2] * 1.8
+    ];
+  }, [position, isExploded]);
+
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      // Smooth lerp to target position
+      groupRef.current.position.x += (targetPos[0] - groupRef.current.position.x) * 0.1;
+      groupRef.current.position.y += (targetPos[1] - groupRef.current.position.y) * 0.1;
+      groupRef.current.position.z += (targetPos[2] - groupRef.current.position.z) * 0.1;
+    }
+  });
 
   return (
-    <group position={position} onClick={(e) => { e.stopPropagation(); onClick(node); }}>
+    <group ref={groupRef} position={position} onClick={(e) => { e.stopPropagation(); onClick(node); }}>
       <Float speed={isSelected ? 4 : 2} rotationIntensity={0.2} floatIntensity={0.3}>
         <mesh scale={scale} castShadow>
           {isSystem ? (
-            <boxGeometry args={[1.5, 0.4, 1.5]} />
+            <boxGeometry args={[1.8, 0.5, 1.8]} />
+          ) : isAssembly ? (
+            <octahedronGeometry args={[0.8]} />
           ) : (
-            <cylinderGeometry args={[0.5, 0.5, 0.8, 6]} />
+            <cylinderGeometry args={[0.4, 0.4, 0.7, 8]} />
           )}
-          <meshStandardMaterial 
+          <meshPhysicalMaterial 
             color={color} 
-            metalness={0.8} 
+            metalness={0.9} 
             roughness={0.1} 
             emissive={color}
-            emissiveIntensity={(isAffected || isTarget || isSelected) ? 0.6 : 0.05}
+            emissiveIntensity={(isAffected || isTarget || isSelected) ? 0.8 : 0.1}
+            transparent={xRay}
+            opacity={xRay ? 0.4 : 1}
           />
           <Edges 
             color={isSelected ? '#3b82f6' : (isAffected || isTarget ? '#ffffff' : color)} 
@@ -96,18 +198,20 @@ function ComponentMesh({ node, position, isAffected, isTarget, riskLevel, onClic
           />
         </mesh>
         
-        <Billboard position={[0, 1.2, 0]}>
-          <Text
-            fontSize={0.18}
-            color="white"
-            anchorX="center"
-            anchorY="middle"
-            outlineWidth={0.02}
-            outlineColor="#000000"
-          >
-            {node.name}
-          </Text>
-        </Billboard>
+        {!xRay && (
+          <Billboard position={[0, 1.4, 0]}>
+            <Text
+              fontSize={0.2}
+              color="white"
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.02}
+              outlineColor="#000000"
+            >
+              {node.name}
+            </Text>
+          </Billboard>
+        )}
       </Float>
     </group>
   );
@@ -115,23 +219,50 @@ function ComponentMesh({ node, position, isAffected, isTarget, riskLevel, onClic
 
 const CadFilePreview = ({ assetName = "Design Intelligence", impactData = null, graphData = null, industry = "Ship", onOpenDetails }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isExploded, setIsExploded] = useState(false);
+  const [xRay, setXRay] = useState(false);
   const [selectedNode, setSelectedNode] = useState(null);
   const [selectedNodeData, setSelectedNodeData] = useState(null);
   const [isLoadingProps, setIsLoadingProps] = useState(false);
 
   const { nodes, posMap } = useMemo(() => {
-    const rawNodes = graphData?.nodes || [];
-    const filteredNodes = rawNodes.filter(n => ['Component', 'System', 'Asset'].includes(n.group));
-    const posMap = {};
+    const rawNodes = Array.isArray(graphData?.nodes) ? graphData.nodes : [];
+    const filteredNodes = rawNodes.filter(n => 
+      ['Component', 'System', 'Asset', 'Assembly', 'SubAssembly'].includes(n.group)
+    );
     
-    filteredNodes.forEach((n, i) => {
-      let y = 0, radius = 0;
-      if (n.group === 'Asset') { y = 3.5; radius = 0; }
-      else if (n.group === 'System') { y = 1.5; radius = 3.5; }
-      else { y = -0.5; radius = 6; }
+    const posMap = {};
+    const depthMap = {
+      'Asset': 0,
+      'System': 1,
+      'Assembly': 2,
+      'SubAssembly': 3,
+      'Component': 4
+    };
 
-      const angle = (i / filteredNodes.length) * Math.PI * 2;
-      posMap[n.id || n.name] = [Math.cos(angle) * radius, y, Math.sin(angle) * radius];
+    // Group nodes by depth
+    const layers = {};
+    filteredNodes.forEach(n => {
+      const d = depthMap[n.group] || 0;
+      if (!layers[d]) layers[d] = [];
+      layers[d].push(n);
+    });
+
+    // Position nodes in concentric cylinders/layers
+    Object.keys(layers).forEach(depthStr => {
+      const d = parseInt(depthStr);
+      const nodesInLayer = layers[d];
+      const y = 4 - d * 2.5; 
+      const radius = d * 4 + 2; 
+      
+      nodesInLayer.forEach((n, i) => {
+        const angle = (i / nodesInLayer.length) * Math.PI * 2;
+        posMap[n.id || n.name] = [
+          Math.cos(angle) * radius,
+          y,
+          Math.sin(angle) * radius
+        ];
+      });
     });
 
     return { nodes: filteredNodes, posMap };
@@ -149,14 +280,13 @@ const CadFilePreview = ({ assetName = "Design Intelligence", impactData = null, 
   useEffect(() => {
     if (selectedNode) {
       setIsLoadingProps(true);
-      // Real data binding: use node properties from graph if they exist
       setTimeout(() => {
         const realData = {
           assembly: selectedNode.group === 'Component' ? 'Standard Assembly' : 'Major System',
           status: 'Validated',
           material: 'Alloy 6061',
           weight: '4.5 kg',
-          ...selectedNode.properties // Spread real properties from Neo4j
+          ...selectedNode.properties 
         };
         setSelectedNodeData(realData);
         setIsLoadingProps(false);
@@ -188,6 +318,31 @@ const CadFilePreview = ({ assetName = "Design Intelligence", impactData = null, 
       </div>
 
       <div style={{ position: 'absolute', top: 24, right: 24, zIndex: 10, display: 'flex', gap: 12 }}>
+        <div style={{ 
+          display: 'flex', background: 'rgba(30, 41, 59, 0.8)', border: '1px solid #334155', 
+          borderRadius: 8, padding: 4, gap: 4 
+        }}>
+          <button 
+            onClick={() => setIsExploded(!isExploded)}
+            style={{ 
+              background: isExploded ? '#3b82f6' : 'transparent', border: 'none', 
+              borderRadius: 4, padding: '4px 12px', color: '#fff', fontSize: 10, 
+              fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' 
+            }}
+          >
+            EXPLODED
+          </button>
+          <button 
+            onClick={() => setXRay(!xRay)}
+            style={{ 
+              background: xRay ? '#3b82f6' : 'transparent', border: 'none', 
+              borderRadius: 4, padding: '4px 12px', color: '#fff', fontSize: 10, 
+              fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' 
+            }}
+          >
+            X-RAY
+          </button>
+        </div>
         <button onClick={() => setIsFullscreen(!isFullscreen)} style={{ background: 'rgba(30, 41, 59, 0.8)', border: '1px solid #334155', borderRadius: 8, padding: 8, color: '#f1f5f9', cursor: 'pointer' }}>
           {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
         </button>
@@ -195,15 +350,16 @@ const CadFilePreview = ({ assetName = "Design Intelligence", impactData = null, 
 
       <div style={{ flex: 1 }}>
         <Canvas shadows gl={{ antialias: true }}>
-          <PerspectiveCamera makeDefault position={[15, 15, 15]} fov={35} />
-          <color attach="background" args={['#0a0b14']} />
-          <ambientLight intensity={0.4} />
-          <pointLight position={[10, 10, 10]} intensity={1.5} castShadow />
+          <PerspectiveCamera makeDefault position={[20, 20, 20]} fov={35} />
+          <color attach="background" args={['#05060d']} />
+          <ambientLight intensity={0.5} />
+          <pointLight position={[20, 20, 20]} intensity={2} color="#3b82f6" />
+          <spotLight position={[10, 20, 10]} angle={0.15} penumbra={1} intensity={3} castShadow />
           
           <Suspense fallback={null}>
-            <Stage intensity={0.5} environment="city" adjustCamera shadows={false}>
+            <Stage intensity={0.5} environment="city" shadows={false}>
               <group onClick={() => setSelectedNode(null)}>
-                {industry === 'Ship' || industry === 'Shipbuilding' ? <ShipHull /> : <CarChassis />}
+                {(industry === 'Ship' || industry === 'Shipbuilding') ? <ShipHull xRay={xRay} isExploded={isExploded} /> : <CarChassis xRay={xRay} isExploded={isExploded} />}
                 {nodes.map((node) => (
                   <ComponentMesh 
                     key={node.id || node.name}
@@ -214,15 +370,34 @@ const CadFilePreview = ({ assetName = "Design Intelligence", impactData = null, 
                     riskLevel={impactData?.risk_level}
                     isSelected={selectedNode?.id === node.id}
                     onClick={setSelectedNode}
+                    isExploded={isExploded}
+                    xRay={xRay}
                   />
                 ))}
               </group>
             </Stage>
-            <Grid infiniteGrid fadeDistance={50} fadeStrength={5} sectionColor="#1e293b" cellColor="#0f172a" position={[0, -1, 0]} />
-            <ContactShadows position={[0, -1, 0]} opacity={0.4} scale={40} blur={2.5} far={10} />
+            <Grid 
+              infiniteGrid 
+              fadeDistance={100} 
+              fadeStrength={5} 
+              sectionColor="#3b82f6" 
+              cellColor="#1e293b" 
+              sectionThickness={1} 
+              cellThickness={0.5}
+              position={[0, -1.2, 0]} 
+            />
+            <ContactShadows 
+              position={[0, -1.2, 0]} 
+              opacity={0.6} 
+              scale={60} 
+              blur={2} 
+              far={15} 
+              resolution={512} 
+              color="#000000"
+            />
             <Environment preset="night" />
           </Suspense>
-          <OrbitControls makeDefault minDistance={5} maxDistance={50} />
+          <OrbitControls makeDefault minDistance={5} maxDistance={100} />
         </Canvas>
       </div>
 
