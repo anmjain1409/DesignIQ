@@ -6,17 +6,34 @@ class AnalysisService:
 
     def analyze_change(self, component_name: str, discipline: str, user_email: str):
         # Use CONTAINS for flexible matching (title-based input from frontend)
-        query = """
-        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_COMPONENT*1..2]->(c:Component)
-        WHERE toLower(c.name) CONTAINS toLower($component_name)
-           OR toLower($component_name) CONTAINS toLower(c.name)
+        # 1. Fetch Node Details first (to ensure we have metadata even if no impacts)
+        node_query = """
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_ASSEMBLY|HAS_SUBASSEMBLY|HAS_COMPONENT*0..4]->(c)
+        WHERE (c:Asset OR c:System OR c:Assembly OR c:SubAssembly OR c:Component)
+          AND (toLower(c.name) CONTAINS toLower($component_name) OR toLower($component_name) CONTAINS toLower(c.name))
+        RETURN properties(c) AS details, labels(c) AS types
+        LIMIT 1
+        """
+        node_records = self.db._execute_query(node_query, {"component_name": component_name, "user_email": user_email})
+        
+        if not node_records:
+            return {"error": "Node not found"}
+            
+        node_details = node_records[0]["details"]
+        actual_type = node_records[0]["types"][0] if node_records[0]["types"] else node_type
+
+        # 2. Fetch Impacts
+        impact_query = """
+        MATCH (u:User {email: $user_email})-[:OWNS]->(a:Asset)-[:HAS_SYSTEM|HAS_ASSEMBLY|HAS_SUBASSEMBLY|HAS_COMPONENT*0..4]->(c)
+        WHERE (toLower(c.name) CONTAINS toLower($component_name) OR toLower($component_name) CONTAINS toLower(c.name))
         WITH c
-        MATCH (c)-[:CONNECTED_TO*1..3]-(affected:Component)
+        MATCH (c)-[:CONNECTED_TO|CONTAINS*1..3]-(affected)
         WHERE id(affected) <> id(c)
+          AND (affected:Component OR affected:SubAssembly OR affected:Assembly OR affected:System)
         RETURN DISTINCT affected.name AS name
         """
-        records = self.db._execute_query(query, {"component_name": component_name, "user_email": user_email})
-        impacted_components = [r["name"].strip() for r in records if r.get("name") and str(r["name"]).strip()]
+        impact_records = self.db._execute_query(impact_query, {"component_name": component_name, "user_email": user_email})
+        impacted_components = [r["name"].strip() for r in impact_records if r.get("name") and str(r["name"]).strip()]
 
         # Risk level
         dependency_count = len(impacted_components)
@@ -67,11 +84,14 @@ class AnalysisService:
             affected_links.append({"source": "root", "target": node_id})
 
         return {
+            "target_component": component_name,
+            "node_type": actual_type,
             "impacted_components": impacted_components,
             "risk_level": risk_level,
             "estimated_cost": f"₹{estimated_cost:,}",
             "timeline": estimated_timeline,
             "cad_graph": cad_graph,
+            "details": node_details,
             "affected_graph": {
                 "nodes": affected_nodes,
                 "links": affected_links,

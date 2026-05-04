@@ -15,6 +15,8 @@ const GraphView = ({ data, onNodeClick }) => {
     switch (node.group) {
       case 'Asset': return '#8b5cf6'; // Purple
       case 'System': return '#3b82f6'; // Blue
+      case 'Assembly': return '#06b6d4'; // Cyan
+      case 'SubAssembly': return '#10b981'; // Green
       case 'Component': return '#f59e0b'; // Amber
       case 'Property': return '#ef4444'; // Red
       default: return '#94a3b8'; // Slate
@@ -27,8 +29,9 @@ const GraphView = ({ data, onNodeClick }) => {
         <div className="graph-legend">
           <div className="legend-item"><div className="color-box" style={{backgroundColor: '#8b5cf6'}}></div> <span>Asset</span></div>
           <div className="legend-item"><div className="color-box" style={{backgroundColor: '#3b82f6'}}></div> <span>System</span></div>
+          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#06b6d4'}}></div> <span>Assembly</span></div>
+          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#10b981'}}></div> <span>SubAssembly</span></div>
           <div className="legend-item"><div className="color-box" style={{backgroundColor: '#f59e0b'}}></div> <span>Component</span></div>
-          <div className="legend-item"><div className="color-box" style={{backgroundColor: '#ef4444'}}></div> <span>Property</span></div>
         </div>
       </div>
       

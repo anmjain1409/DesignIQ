@@ -79,21 +79,26 @@ class CADPipeline:
             assembly_tree = {
                 "name": "Vehicle Powertrain",
                 "type": "Assembly",
+                "properties": {"Material": "Cast Aluminum", "Weight": "150kg", "Service_Interval": "12 months"},
                 "children": [
                     {
                         "name": "Engine System",
                         "type": "SubAssembly",
-                        "children": ["V8 Engine Block", "Cylinder Head", "Crankshaft", "Camshaft"]
+                        "properties": {"Displacement": "4.0L", "HP": "450", "Fuel_Type": "Octane 95"},
+                        "children": [
+                            {"name": "V8 Engine Block", "properties": {"Bore": "93mm", "Stroke": "73.5mm", "Alloy": "AlSi7Mg"}},
+                            {"name": "Cylinder Head", "properties": {"Valves": "32", "Inlet": "Titanium"}},
+                            {"name": "Crankshaft", "properties": {"Forged": "Yes", "Material": "4340 Steel"}}
+                        ]
                     },
                     {
                         "name": "Transmission System",
                         "type": "SubAssembly",
-                        "children": ["Gearbox Case", "Clutch Assembly", "Drive Shaft"]
-                    },
-                    {
-                        "name": "Chassis Group",
-                        "type": "SubAssembly",
-                        "children": ["Main Frame", "Suspension Arm", "Brake Disc"]
+                        "properties": {"Gears": "7", "Type": "Dual Clutch"},
+                        "children": [
+                            {"name": "Gearbox Case", "properties": {"Pressure": "20bar", "Seal": "EPDM"}},
+                            {"name": "Clutch Assembly", "properties": {"Torque": "600Nm", "Plates": "8"}}
+                        ]
                     }
                 ]
             }
@@ -102,44 +107,25 @@ class CADPipeline:
             assembly_tree = {
                 "name": "Main Airframe Assembly",
                 "type": "Assembly",
+                "properties": {"Safety_Factor": "1.5", "Max_Altitude": "40,000ft", "Material": "Carbon Composite"},
                 "children": [
                     {
                         "name": "Propulsion Module",
                         "type": "SubAssembly",
-                        "children": ["Turbofan Intake", "Compressor Fan", "Combustion Chamber", "Exhaust Nozzle"]
+                        "properties": {"Thrust": "35,000lbf", "Bypass_Ratio": "10:1"},
+                        "children": [
+                            {"name": "Turbofan Intake", "properties": {"Diameter": "2.8m", "Blades": "22"}},
+                            {"name": "Combustion Chamber", "properties": {"Temp": "1800C", "Material": "Inconel"}}
+                        ]
                     },
                     {
                         "name": "Wing Assembly",
                         "type": "SubAssembly",
-                        "children": ["Wing Spar", "Leading Edge", "Aileron", "Flap Actuator"]
-                    },
-                    {
-                        "name": "Fuselage Section",
-                        "type": "SubAssembly",
-                        "children": ["Cockpit Frame", "Main Cabin Shell", "Landing Gear Bay"]
-                    }
-                ]
-            }
-        elif any(kw in filename for kw in ["rig", "oil", "pipe", "pump"]):
-            product, ind = f"{base_name} Platform", "Oil & Gas"
-            assembly_tree = {
-                "name": "Subsea Extraction Unit",
-                "type": "Assembly",
-                "children": [
-                    {
-                        "name": "Drilling Module",
-                        "type": "SubAssembly",
-                        "children": ["Drill Bit", "Drill Pipe", "Rotary Table", "Mud Pump"]
-                    },
-                    {
-                        "name": "Flow Control",
-                        "type": "SubAssembly",
-                        "children": ["Pressure Valve", "Flow Meter", "BOP Stack"]
-                    },
-                    {
-                        "name": "Pumping Group",
-                        "type": "SubAssembly",
-                        "children": ["Centrifugal Pump", "Intake manifold", "Discharge Pipe"]
+                        "properties": {"Span": "35m", "Fuel_Capacity": "12,000L"},
+                        "children": [
+                            {"name": "Wing Spar", "properties": {"Load": "100kN", "Material": "7075-T6"}},
+                            {"name": "Aileron", "properties": {"Degrees": "25", "Actuator": "Hydraulic"}}
+                        ]
                     }
                 ]
             }
@@ -148,21 +134,25 @@ class CADPipeline:
             assembly_tree = {
                 "name": "Marine Propulsion Unit",
                 "type": "Assembly",
+                "properties": {"Power": "12,000kW", "Class": "Lloyds Register", "Material": "Marine Steel"},
                 "children": [
                     {
                         "name": "Hull Structure",
                         "type": "SubAssembly",
-                        "children": ["Hull Plate", "Keel Section", "Bulkhead", "Main Deck Section"]
+                        "properties": {"Length": "120m", "Beam": "22m", "Draft": "8.5m"},
+                        "children": [
+                            {"name": "Hull Plate", "properties": {"Thickness": "25mm", "Grade": "EH36", "Coating": "Epoxy"}},
+                            {"name": "Keel Section", "properties": {"Weight": "45t", "Stress": "120MPa"}}
+                        ]
                     },
                     {
                         "name": "Drive Train",
                         "type": "SubAssembly",
-                        "children": ["Propeller Shaft", "Rudder Blade", "Main Bearing", "Stern Tube"]
-                    },
-                    {
-                        "name": "Power Generation",
-                        "type": "SubAssembly",
-                        "children": ["Diesel Engine", "Generator Set", "Fuel Pump"]
+                        "properties": {"RPM": "105", "Shaft_Dia": "650mm"},
+                        "children": [
+                            {"name": "Propeller Shaft", "properties": {"Length": "12m", "Forged": "Yes"}},
+                            {"name": "Rudder Blade", "properties": {"Area": "14.5m2", "Angle": "35deg"}}
+                        ]
                     }
                 ]
             }

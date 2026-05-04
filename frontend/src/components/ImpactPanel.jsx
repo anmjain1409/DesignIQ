@@ -42,95 +42,89 @@ const ImpactPanel = ({ impactData, isLoading }) => {
   }
 
   return (
-    <div className="impact-content">
-      <div className="impact-header">
-        <div>
-          <h2 className="impact-title">Impact Report</h2>
-          <div className="impact-subtitle">Target: <strong>{impactData.target_component}</strong></div>
-        </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <div className={`risk-badge risk-${impactData.risk_level}`}>
-            Risk Level: {impactData.risk_level}
+    <div className="impact-content" style={{ padding: '24px' }}>
+      <div className="impact-header" style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+          <div>
+            <h2 className="impact-title" style={{ fontSize: '1rem', color: 'var(--accent-color)', marginBottom: '4px' }}>TECHNICAL SPECIFICATIONS</h2>
+            <div className="impact-subtitle" style={{ fontSize: '1.2rem', color: '#fff' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginRight: 8 }}>{impactData.node_type}:</span>
+              <strong>{impactData.target_component}</strong>
+            </div>
           </div>
-          <button 
-            className={`primary-btn-mini ${created ? 'success' : ''}`} 
-            onClick={handleInitiateCR}
-            disabled={isCreating || created}
-          >
-            {isCreating ? 'Processing...' : created ? <><Check size={14} /> Created</> : <><PlusCircle size={14} /> Initiate CR</>}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className={`risk-badge risk-${impactData.risk_level}`} style={{ fontSize: '0.7rem' }}>
+              Risk Level: {impactData.risk_level}
+            </div>
+            <button 
+              className={`primary-btn-mini ${created ? 'success' : ''}`} 
+              onClick={handleInitiateCR}
+              disabled={isCreating || created}
+              style={{ padding: '6px 12px', fontSize: '0.8rem' }}
+            >
+              {isCreating ? '...' : created ? 'Created' : 'Initiate CR'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {impactData.details && (
+      <div className="impact-main-grid" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '32px' }}>
+        {/* Node Properties */}
         <div className="impact-section">
-          <h4>{impactData.node_type} Details</h4>
-          <div className="mini-metadata-list">
-            {impactData.node_type === 'Component' && (
-              <>
-                <div className="mini-meta-item">
-                  <span>Assembly</span>
-                  <strong>{impactData.details.assembly}</strong>
+          <h4 style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginBottom: '12px', letterSpacing: '1px' }}>COMPONENT ATTRIBUTES</h4>
+          <div className="mini-metadata-list" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {Object.entries(impactData.details || {})
+              .filter(([k]) => !['name', 'group', 'createdAt', 'id', 'type', 'type3D', 'type2D'].includes(k))
+              .length > 0 ? (
+                Object.entries(impactData.details)
+                  .filter(([k]) => !['name', 'group', 'createdAt', 'id', 'type', 'type3D', 'type2D'].includes(k))
+                  .map(([key, val]) => (
+                  <div key={key} className="mini-meta-item" style={{ background: 'rgba(255,255,255,0.02)', padding: '8px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.65rem', textTransform: 'uppercase', marginBottom: '2px' }}>{key.replace(/_/g, ' ')}</div>
+                    <div style={{ color: 'var(--accent-color)', fontWeight: '700', fontSize: '0.85rem' }}>{String(val)}</div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', gridColumn: 'span 2' }}>
+                  No additional engineering metadata found.
                 </div>
-                <div className="mini-meta-item">
-                  <span>Supplier</span>
-                  <strong>{impactData.details.supplier}</strong>
-                </div>
-                <div className="mini-meta-item">
-                  <span>Version</span>
-                  <strong>{impactData.details.version}</strong>
-                </div>
-              </>
-            )}
-            {impactData.node_type === 'System' && (
-              <div className="mini-meta-item">
-                <span>Generic Name</span>
-                <strong>{impactData.details.generic}</strong>
-              </div>
-            )}
-            {impactData.node_type === 'Asset' && (
-              <div className="mini-meta-item">
-                <span>Industry</span>
-                <strong>{impactData.details.industry}</strong>
-              </div>
-            )}
-            {impactData.node_type === 'Property' && (
-              <div className="mini-meta-item">
-                <span>Value</span>
-                <strong>{impactData.details.value}</strong>
-              </div>
-            )}
-            {Object.entries(impactData.details.properties || {}).map(([key, val]) => (
-              <div key={key} className="mini-meta-item">
-                <span>{key}</span>
-                <strong>{val}</strong>
-              </div>
-            ))}
+              )
+            }
           </div>
         </div>
-      )}
 
-      {impactData.affected_systems.length > 0 && (
+        {/* Impacted Components */}
         <div className="impact-section">
-          <h4>Affected Systems</h4>
-          <ul className="impact-list">
-            {impactData.affected_systems.map((item, i) => (
-              <li key={i}>{item}</li>
-            ))}
-          </ul>
+          <h4 style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginBottom: '12px', letterSpacing: '1px' }}>IMPACTED COMPONENTS</h4>
+          {impactData.impacted_components && impactData.impacted_components.length > 0 ? (
+            <ul className="impact-list" style={{ listStyle: 'none', padding: 0 }}>
+              {impactData.impacted_components.map((item, i) => (
+                <li key={i} style={{ fontSize: '0.85rem', marginBottom: '6px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '4px', height: '4px', background: 'var(--danger)', borderRadius: '50%' }}></div>
+                  {item}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>No direct impacts detected.</div>
+          )}
         </div>
-      )}
 
-      {impactData.affected_assets.length > 0 && (
+        {/* Affected Assets */}
         <div className="impact-section">
-          <h4>Affected Assets</h4>
-          <ul className="impact-list">
-            {impactData.affected_assets.map((item, i) => (
-              <li key={i}>{item}</li>
-            ))}
-          </ul>
+          <h4 style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginBottom: '12px', letterSpacing: '1px' }}>AFFECTED ASSETS</h4>
+          {impactData.cad_graph?.asset ? (
+            <ul className="impact-list" style={{ listStyle: 'none', padding: 0 }}>
+              <li style={{ fontSize: '0.85rem', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '4px', height: '4px', background: 'var(--accent-color)', borderRadius: '50%' }}></div>
+                {impactData.cad_graph.asset}
+              </li>
+            </ul>
+          ) : (
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>No parent assets identified.</div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };

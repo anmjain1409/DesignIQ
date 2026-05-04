@@ -132,34 +132,34 @@ class Neo4jClient:
 
         def _ingest_node(parent_name, parent_label, node):
             if isinstance(node, str):
-                # It's a leaf component
-                comp_query = f"""
-                MATCH (p:{parent_label} {{name: $parent_name}})
-                MERGE (p)-[:HAS_COMPONENT]->(c:Component {{name: $name, type: $type}})
-                ON CREATE SET c.createdAt = timestamp()
-                """
-                self._execute_query(comp_query, {
-                    "parent_name": parent_name,
-                    "name": node,
-                    "type": type_label
-                })
+                name, props, label = node, {}, "Component"
             else:
-                # It's an Assembly or SubAssembly
                 name = node['name']
-                label = node['type'] # 'Assembly' or 'SubAssembly'
-                rel_type = f"HAS_{label.upper()}"
-                
-                node_query = f"""
-                MATCH (p:{parent_label} {{name: $parent_name}})
-                MERGE (p)-[:{rel_type}]->(n:{label} {{name: $name}})
-                ON CREATE SET n.createdAt = timestamp()
-                """
-                self._execute_query(node_query, {
-                    "parent_name": parent_name,
-                    "name": name
-                })
-                
-                for child in node.get('children', []):
+                props = node.get('properties', {})
+                label = node.get('type', 'Component')
+
+            rel_type = f"HAS_{label.upper()}"
+            
+            # Merge the node
+            node_query = f"""
+            MATCH (p:{parent_label} {{name: $parent_name}})
+            MERGE (n:{label} {{name: $name}})
+            ON CREATE SET n.createdAt = timestamp()
+            MERGE (p)-[:{rel_type}]->(n)
+            WITH n, $props AS p_data
+            UNWIND keys(p_data) AS key
+            MERGE (n)-[:HAS_PROPERTY]->(prop:Property {{name: key, value: toString(p_data[key])}})
+            RETURN n
+            """
+            self._execute_query(node_query, {
+                "parent_name": parent_name,
+                "name": name,
+                "props": props
+            })
+
+            # Recurse if there are children
+            if isinstance(node, dict) and 'children' in node:
+                for child in node['children']:
                     _ingest_node(name, label, child)
 
         # Start recursion from System
